@@ -204,3 +204,12 @@ enum RelationalExpression {
 fn relational_expression(s: &str) -> IResult<&str, RelationalExpression> {
     unimplemented!();
 }
+
+#[derive(Debug)]
+enum Expression {
+    RelationalExpression(RelationalExpression),
+}
+
+fn expression(s: &str) -> IResult<&str, Expression> {
+    unimplemented!();
+}
