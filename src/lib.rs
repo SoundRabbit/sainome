@@ -1,4 +1,5 @@
 extern crate nom;
+extern crate nom_recursive;
 
 use nom::{
     branch::{alt, permutation},
@@ -10,8 +11,12 @@ use nom::{
     sequence::delimited,
     IResult,
 };
+use nom_locate::LocatedSpan;
+use nom_recursive::{recursive_parser, RecursiveInfo};
 
-#[derive(Debug)]
+type Span<'a> = LocatedSpan<&'a str, RecursiveInfo>;
+
+#[derive(Debug, PartialEq)]
 enum Literal {
     Number(f64),
     String(String),
@@ -19,11 +24,11 @@ enum Literal {
     Reference(Vec<String>),
 }
 
-fn number(s: &str) -> IResult<&str, Literal> {
+fn number(s: Span) -> IResult<Span, Literal> {
     map(double, |s| Literal::Number(s))(s)
 }
 
-fn string(s: &str) -> IResult<&str, Literal> {
+fn string(s: Span) -> IResult<Span, Literal> {
     map(
         delimited(
             char('\"'),
@@ -45,11 +50,7 @@ fn string(s: &str) -> IResult<&str, Literal> {
     )(s)
 }
 
-fn ident(s: &str) -> IResult<&str, Literal> {
-    map(alpha1, |i| Literal::Ident(String::from(i)))(s)
-}
-
-fn reference(s: &str) -> IResult<&str, Literal> {
+fn reference(s: Span) -> IResult<Span, Literal> {
     map(
         delimited(
             char('{'),
@@ -60,52 +61,52 @@ fn reference(s: &str) -> IResult<&str, Literal> {
     )(s)
 }
 
-fn literal(s: &str) -> IResult<&str, Literal> {
-    alt((number, string, ident, reference))(s)
+fn literal(s: Span) -> IResult<Span, Literal> {
+    alt((number, string, reference))(s)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum MultiplicativeOperator {
     Multi,
     Div,
     Mod,
 }
 
-fn operator_multi(s: &str) -> IResult<&str, MultiplicativeOperator> {
-    map(char('+'), |_| MultiplicativeOperator::Multi)(s)
+fn operator_multi(s: Span) -> IResult<Span, MultiplicativeOperator> {
+    map(char('*'), |_| MultiplicativeOperator::Multi)(s)
 }
 
-fn operator_div(s: &str) -> IResult<&str, MultiplicativeOperator> {
-    map(char('+'), |_| MultiplicativeOperator::Div)(s)
+fn operator_div(s: Span) -> IResult<Span, MultiplicativeOperator> {
+    map(char('/'), |_| MultiplicativeOperator::Div)(s)
 }
 
-fn operator_mod(s: &str) -> IResult<&str, MultiplicativeOperator> {
+fn operator_mod(s: Span) -> IResult<Span, MultiplicativeOperator> {
     map(char('%'), |_| MultiplicativeOperator::Mod)(s)
 }
 
-fn multiplicative_operator(s: &str) -> IResult<&str, MultiplicativeOperator> {
+fn multiplicative_operator(s: Span) -> IResult<Span, MultiplicativeOperator> {
     alt((operator_multi, operator_div, operator_mod))(s)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum AdditiveOperator {
     Add,
     Minus,
 }
 
-fn operator_add(s: &str) -> IResult<&str, AdditiveOperator> {
+fn operator_add(s: Span) -> IResult<Span, AdditiveOperator> {
     map(char('+'), |_| AdditiveOperator::Add)(s)
 }
 
-fn operator_minus(s: &str) -> IResult<&str, AdditiveOperator> {
-    map(char('+'), |_| AdditiveOperator::Minus)(s)
+fn operator_minus(s: Span) -> IResult<Span, AdditiveOperator> {
+    map(char('-'), |_| AdditiveOperator::Minus)(s)
 }
 
-fn additive_operator(s: &str) -> IResult<&str, AdditiveOperator> {
+fn additive_operator(s: Span) -> IResult<Span, AdditiveOperator> {
     alt((operator_add, operator_minus))(s)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum RelationalOperator {
     Equals,
     GreaterThan,
@@ -115,39 +116,39 @@ enum RelationalOperator {
     NotEquals,
 }
 
-fn operator_eq(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_eq(s: Span) -> IResult<Span, RelationalOperator> {
     map(permutation((char('='), char('='))), |_| {
         RelationalOperator::Equals
     })(s)
 }
 
-fn operator_gt(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_gt(s: Span) -> IResult<Span, RelationalOperator> {
     map(char('>'), |_| RelationalOperator::GreaterThan)(s)
 }
 
-fn operator_lt(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_lt(s: Span) -> IResult<Span, RelationalOperator> {
     map(char('>'), |_| RelationalOperator::LessThan)(s)
 }
 
-fn operator_eq_gt(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_eq_gt(s: Span) -> IResult<Span, RelationalOperator> {
     map(permutation((char('>'), char('='))), |_| {
         RelationalOperator::EqGreaterThan
     })(s)
 }
 
-fn operator_eq_lt(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_eq_lt(s: Span) -> IResult<Span, RelationalOperator> {
     map(permutation((char('<'), char('='))), |_| {
         RelationalOperator::EqLessThan
     })(s)
 }
 
-fn operator_not_eq(s: &str) -> IResult<&str, RelationalOperator> {
+fn operator_not_eq(s: Span) -> IResult<Span, RelationalOperator> {
     map(permutation((char('!'), char('='))), |_| {
         RelationalOperator::NotEquals
     })(s)
 }
 
-fn relational_operator(s: &str) -> IResult<&str, RelationalOperator> {
+fn relational_operator(s: Span) -> IResult<Span, RelationalOperator> {
     alt((
         operator_eq,
         operator_eq_gt,
@@ -158,120 +159,45 @@ fn relational_operator(s: &str) -> IResult<&str, RelationalOperator> {
     ))(s)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum PrimaryExpression {
-    Literal(Literal),
     Tuple(Vec<Expression>),
+    Literal(Literal),
 }
 
-fn tuple(s: &str) -> IResult<&str, Vec<Expression>> {
+#[recursive_parser]
+fn tuple(s: Span) -> IResult<Span, Vec<Expression>> {
     delimited(char('('), separated_list(char(','), expression), char(')'))(s)
 }
 
-fn primary_expression(s: &str) -> IResult<&str, PrimaryExpression> {
+fn primary_expression(s: Span) -> IResult<Span, PrimaryExpression> {
     alt((
         map(literal, |x| PrimaryExpression::Literal(x)),
         map(tuple, |x| PrimaryExpression::Tuple(x)),
     ))(s)
 }
 
-#[derive(Debug)]
-enum MultipricativeExpression {
-    PrimaryExpression(PrimaryExpression),
-    MultipricativeExpression {
-        left: Box<MultipricativeExpression>,
-        right: PrimaryExpression,
-        operator: MultiplicativeOperator,
-    },
-}
-
-fn multiplicative_expression(s: &str) -> IResult<&str, MultipricativeExpression> {
-    alt((
-        map(primary_expression, |x| {
-            MultipricativeExpression::PrimaryExpression(x)
-        }),
-        map(
-            permutation((
-                multiplicative_expression,
-                multiplicative_operator,
-                primary_expression,
-            )),
-            |(l, o, r)| MultipricativeExpression::MultipricativeExpression {
-                left: Box::new(l),
-                right: r,
-                operator: o,
-            },
-        ),
-    ))(s)
-}
-
-#[derive(Debug)]
-enum AdditiveExpression {
-    MultipricativeExpression(MultipricativeExpression),
-    AdditiveExpression {
-        left: Box<AdditiveExpression>,
-        right: MultipricativeExpression,
-        operator: AdditiveOperator,
-    },
-}
-
-fn additive_expression(s: &str) -> IResult<&str, AdditiveExpression> {
-    alt((
-        map(multiplicative_expression, |x| {
-            AdditiveExpression::MultipricativeExpression(x)
-        }),
-        map(
-            permutation((
-                additive_expression,
-                additive_operator,
-                multiplicative_expression,
-            )),
-            |(l, o, r)| AdditiveExpression::AdditiveExpression {
-                left: Box::new(l),
-                right: r,
-                operator: o,
-            },
-        ),
-    ))(s)
-}
-
-#[derive(Debug)]
-enum RelationalExpression {
-    AdditiveExpression(AdditiveExpression),
-    RelationalExpression {
-        left: Box<RelationalExpression>,
-        right: AdditiveExpression,
-        operator: RelationalOperator,
-    },
-}
-
-fn relational_expression(s: &str) -> IResult<&str, RelationalExpression> {
-    alt((
-        map(additive_expression, |x| {
-            RelationalExpression::AdditiveExpression(x)
-        }),
-        map(
-            permutation((
-                relational_expression,
-                relational_operator,
-                additive_expression,
-            )),
-            |(l, o, r)| RelationalExpression::RelationalExpression {
-                left: Box::new(l),
-                right: r,
-                operator: o,
-            },
-        ),
-    ))(s)
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Expression {
-    RelationalExpression(RelationalExpression),
+    PrimaryExpression(PrimaryExpression),
 }
 
-fn expression(s: &str) -> IResult<&str, Expression> {
-    map(relational_expression, |x| {
-        Expression::RelationalExpression(x)
-    })(s)
+fn expression(s: Span) -> IResult<Span, Expression> {
+    map(primary_expression, |x| Expression::PrimaryExpression(x))(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = expression(LocatedSpan::new_extra("(0,120.0,5)", RecursiveInfo::new()));
+        assert_eq!(
+            result.map(|(_, r)| r).ok(),
+            Some(Expression::PrimaryExpression(PrimaryExpression::Tuple(
+                vec![]
+            )))
+        );
+    }
 }

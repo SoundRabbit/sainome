@@ -1,5 +1,5 @@
 [package]
-name = "Mitama"
+name = "sainome"
 version = "0.1.0"
 authors = ["SoundRabbit <soundrabbitstd@gmail.com>"]
 edition = "2018"
@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 nom = "5.1.1"
+nom_locate = "2.0.0"
+nom-recursive = "0.2.0"
