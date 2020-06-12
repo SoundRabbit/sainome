@@ -66,6 +66,17 @@ fn literal(s: Span) -> IResult<Span, Literal> {
 }
 
 #[derive(Debug, PartialEq)]
+enum PrimaryExpression {
+    Literal(Literal),
+    Block(Box<Expression>),
+}
+
+#[recursive_parser]
+fn block(s: Span) -> IResult<Span, Expression> {
+    delimited(char('('), expression, char(')'))(s)
+}
+
+#[derive(Debug, PartialEq)]
 enum MultiplicativeOperator {
     Multi,
     Div,
@@ -104,6 +115,11 @@ fn operator_minus(s: Span) -> IResult<Span, AdditiveOperator> {
 
 fn additive_operator(s: Span) -> IResult<Span, AdditiveOperator> {
     alt((operator_add, operator_minus))(s)
+}
+
+#[derive(Debug, PartialEq)]
+struct AdditiveExpression {
+    left: Box<AdditiveExpression>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -159,32 +175,13 @@ fn relational_operator(s: Span) -> IResult<Span, RelationalOperator> {
     ))(s)
 }
 
-#[derive(Debug, PartialEq)]
-enum PrimaryExpression {
-    Tuple(Vec<Expression>),
-    Literal(Literal),
+struct RelationalExpression {
+    left: AdditiveExpression,
+    right: Box<RelationalExpression>,
+    operator: RelationalOperator,
 }
 
-#[recursive_parser]
-fn tuple(s: Span) -> IResult<Span, Vec<Expression>> {
-    delimited(char('('), separated_list(char(','), expression), char(')'))(s)
-}
-
-fn primary_expression(s: Span) -> IResult<Span, PrimaryExpression> {
-    alt((
-        map(literal, |x| PrimaryExpression::Literal(x)),
-        map(tuple, |x| PrimaryExpression::Tuple(x)),
-    ))(s)
-}
-
-#[derive(Debug, PartialEq)]
-enum Expression {
-    PrimaryExpression(PrimaryExpression),
-}
-
-fn expression(s: Span) -> IResult<Span, Expression> {
-    map(primary_expression, |x| Expression::PrimaryExpression(x))(s)
-}
+type Expression = RelationalExpression;
 
 #[cfg(test)]
 mod tests {
@@ -192,12 +189,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let result = expression(LocatedSpan::new_extra("(0,120.0,5)", RecursiveInfo::new()));
-        assert_eq!(
-            result.map(|(_, r)| r).ok(),
-            Some(Expression::PrimaryExpression(PrimaryExpression::Tuple(
-                vec![]
-            )))
-        );
+        let result = expression(LocatedSpan::new_extra(
+            r#""(0,120.0,5)""#,
+            RecursiveInfo::new(),
+        ));
     }
 }
