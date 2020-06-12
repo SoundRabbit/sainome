@@ -60,17 +60,15 @@ fn reference(s: &str) -> IResult<&str, Literal> {
     )(s)
 }
 
+fn literal(s: &str) -> IResult<&str, Literal> {
+    alt((number, string, ident, reference))(s)
+}
+
 #[derive(Debug)]
 enum MultiplicativeOperator {
     Multi,
     Div,
     Mod,
-}
-
-#[derive(Debug)]
-enum AdditiveOperator {
-    Add,
-    Minus,
 }
 
 fn operator_multi(s: &str) -> IResult<&str, MultiplicativeOperator> {
@@ -89,7 +87,13 @@ fn multiplicative_operator(s: &str) -> IResult<&str, MultiplicativeOperator> {
     alt((operator_multi, operator_div, operator_mod))(s)
 }
 
-fn operator_plus(s: &str) -> IResult<&str, AdditiveOperator> {
+#[derive(Debug)]
+enum AdditiveOperator {
+    Add,
+    Minus,
+}
+
+fn operator_add(s: &str) -> IResult<&str, AdditiveOperator> {
     map(char('+'), |_| AdditiveOperator::Add)(s)
 }
 
@@ -98,7 +102,7 @@ fn operator_minus(s: &str) -> IResult<&str, AdditiveOperator> {
 }
 
 fn additive_operator(s: &str) -> IResult<&str, AdditiveOperator> {
-    alt((operator_plus, operator_minus))(s)
+    alt((operator_add, operator_minus))(s)
 }
 
 #[derive(Debug)]
@@ -157,10 +161,18 @@ fn relation_operator(s: &str) -> IResult<&str, RelationalOperator> {
 #[derive(Debug)]
 enum PrimaryExpression {
     Literal(Literal),
+    Tuple(Vec<Expression>),
+}
+
+fn tuple(s: &str) -> IResult<&str, Vec<Expression>> {
+    delimited(char('('), separated_list(char(','), expression), char(')'))(s)
 }
 
 fn primary_expression(s: &str) -> IResult<&str, PrimaryExpression> {
-    unimplemented!();
+    alt((
+        map(literal, |x| PrimaryExpression::Literal(x)),
+        map(tuple, |x| PrimaryExpression::Tuple(x)),
+    ))(s)
 }
 
 #[derive(Debug)]
@@ -174,7 +186,23 @@ enum MultipricativeExpression {
 }
 
 fn multiplicative_expression(s: &str) -> IResult<&str, MultipricativeExpression> {
-    unimplemented!();
+    alt((
+        map(primary_expression, |x| {
+            MultipricativeExpression::PrimaryExpression(x)
+        }),
+        map(
+            permutation((
+                multiplicative_expression,
+                multiplicative_operator,
+                primary_expression,
+            )),
+            |(l, o, r)| MultipricativeExpression::MultipricativeExpression {
+                left: Box::new(l),
+                right: r,
+                operator: o,
+            },
+        ),
+    ))(s)
 }
 
 #[derive(Debug)]
@@ -188,7 +216,23 @@ enum AdditiveExpression {
 }
 
 fn additive_expression(s: &str) -> IResult<&str, AdditiveExpression> {
-    unimplemented!();
+    alt((
+        map(multiplicative_expression, |x| {
+            AdditiveExpression::MultipricativeExpression(x)
+        }),
+        map(
+            permutation((
+                additive_expression,
+                additive_operator,
+                multiplicative_expression,
+            )),
+            |(l, o, r)| AdditiveExpression::AdditiveExpression {
+                left: Box::new(l),
+                right: r,
+                operator: o,
+            },
+        ),
+    ))(s)
 }
 
 #[derive(Debug)]
