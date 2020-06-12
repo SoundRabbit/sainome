@@ -147,7 +147,7 @@ fn operator_not_eq(s: &str) -> IResult<&str, RelationalOperator> {
     })(s)
 }
 
-fn relation_operator(s: &str) -> IResult<&str, RelationalOperator> {
+fn relational_operator(s: &str) -> IResult<&str, RelationalOperator> {
     alt((
         operator_eq,
         operator_eq_gt,
@@ -246,7 +246,23 @@ enum RelationalExpression {
 }
 
 fn relational_expression(s: &str) -> IResult<&str, RelationalExpression> {
-    unimplemented!();
+    alt((
+        map(additive_expression, |x| {
+            RelationalExpression::AdditiveExpression(x)
+        }),
+        map(
+            permutation((
+                relational_expression,
+                relational_operator,
+                additive_expression,
+            )),
+            |(l, o, r)| RelationalExpression::RelationalExpression {
+                left: Box::new(l),
+                right: r,
+                operator: o,
+            },
+        ),
+    ))(s)
 }
 
 #[derive(Debug)]
@@ -255,5 +271,7 @@ enum Expression {
 }
 
 fn expression(s: &str) -> IResult<&str, Expression> {
-    unimplemented!();
+    map(relational_expression, |x| {
+        Expression::RelationalExpression(x)
+    })(s)
 }
