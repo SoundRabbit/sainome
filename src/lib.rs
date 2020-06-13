@@ -1,10 +1,9 @@
 #[macro_use]
 extern crate lalrpop_util;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod ast;
 
-    #[test]
-    fn it_works() {}
-}
+lalrpop_mod!(pub syntax);
+
+#[test]
+fn calculator1() {}
