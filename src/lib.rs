@@ -9,17 +9,16 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 struct RunTime {
-    stack: Vec<HashMap<Rc<String>, Value>>,
+    stack: Vec<HashMap<Rc<String>, Rc<Value>>>,
     parser: syntax::ExprParser,
 }
 
-#[derive(Clone)]
 enum Value {
     None,
     Bool(bool),
-    Str(String),
+    Str(Rc<String>),
     Num(f64),
-    List(Vec<Value>),
+    List(Vec<Rc<Value>>),
     Fnc(Rc<String>, Rc<FncDef>),
 }
 
@@ -47,7 +46,7 @@ impl RunTime {
                 let len = self.stack.len();
                 let value = self.exec_func_def(fnc_def);
                 if let Some(value) = value {
-                    self.stack[len - 1].insert(Rc::clone(ident), value);
+                    self.stack[len - 1].insert(Rc::clone(ident), Rc::new(value));
                 }
                 Some(Value::None)
             }
@@ -77,8 +76,9 @@ impl RunTime {
                                     let left = self.exec_expr_0(left);
                                     let f = left
                                         .and_then(|left| {
-                                            value.push(left.clone());
-                                            self.call_fnc((a, &i), left)
+                                            let left = Rc::new(left);
+                                            value.push(Rc::clone(&left));
+                                            self.call_fnc((a, &i), Rc::clone(&left))
                                         })
                                         .and_then(|f| match f {
                                             Value::Bool(f) => Some(f),
@@ -99,9 +99,10 @@ impl RunTime {
                                 loop {
                                     let left = self.exec_expr_0(left);
                                     let f = left.and_then(|left| {
-                                        value.push(left.clone());
-                                        match left {
-                                            Value::Num(m) => Some(m >= n),
+                                        let left = Rc::new(left);
+                                        value.push(Rc::clone(&left));
+                                        match left.as_ref() {
+                                            Value::Num(m) => Some(*m >= n),
                                             _ => None,
                                         }
                                     });
@@ -133,7 +134,11 @@ impl RunTime {
                 let right = self.exec_expr_2(right);
                 if let (Some(left), Some(right)) = (left, right) {
                     if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Some(Self::exec_expr_1_bool(left, right, op_code))
+                        Self::exec_expr_1_bool(left, right, op_code)
+                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                        Self::exec_expr_1_str(&left, &right, op_code)
+                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                        Self::exec_expr_1_num(left, right, op_code)
                     } else {
                         None
                     }
@@ -146,7 +151,27 @@ impl RunTime {
     }
 
     fn exec_expr_2(&mut self, expr_2: &Expr2) -> Option<Value> {
-        unimplemented!();
+        match expr_2 {
+            Expr2::Expr2(left, right, op_code) => {
+                let left = self.exec_expr_2(left);
+                let right = self.exec_expr_3(right);
+                if let (Some(left), Some(right)) = (left, right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                        Self::exec_expr_2_bool(left, right, op_code)
+                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                        Self::exec_expr_2_str(&left, &right, op_code)
+                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                        Self::exec_expr_2_num(left, right, op_code)
+                    } else if let (Value::List(left), Value::List(right)) = (left, right) {
+                        Self::exec_expr_2_list(&left, &right, op_code)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     fn exec_expr_3(&mut self, expr_3: &Expr3) -> Option<Value> {
@@ -156,22 +181,88 @@ impl RunTime {
     fn exec_expr_4(&mut self, expr_4: &Expr4) -> Option<Value> {
         unimplemented!();
     }
+    fn exec_term(&mut self, term: &Term) -> Option<Value> {
+        unimplemented!();
+    }
 
-    fn exec_expr_1_bool(left: bool, right: bool, op_code: &OpCode1) -> Value {
-        match op_code {
+    fn call_fnc(&mut self, fnc: (Rc<String>, &FncDef), arg: Rc<Value>) -> Option<Value> {
+        let mut vars = HashMap::new();
+        vars.insert(fnc.0, arg);
+        self.stack.push(vars);
+        self.exec_func_def(fnc.1)
+    }
+
+    fn exec_expr_1_bool(left: bool, right: bool, op_code: &OpCode1) -> Option<Value> {
+        Some(match op_code {
             OpCode1::Equal => Value::Bool(left == right),
             OpCode1::NotEq => Value::Bool(left != right),
             OpCode1::EqGreaterThan => Value::Bool(left >= right),
             OpCode1::EqLessThan => Value::Bool(left <= right),
             OpCode1::GreaterThan => Value::Bool(left > right),
             OpCode1::LessThan => Value::Bool(left < right),
+        })
+    }
+
+    fn exec_expr_1_str(left: &String, right: &String, op_code: &OpCode1) -> Option<Value> {
+        Some(match op_code {
+            OpCode1::Equal => Value::Bool(left == right),
+            OpCode1::NotEq => Value::Bool(left != right),
+            OpCode1::EqGreaterThan => Value::Bool(left >= right),
+            OpCode1::EqLessThan => Value::Bool(left <= right),
+            OpCode1::GreaterThan => Value::Bool(left > right),
+            OpCode1::LessThan => Value::Bool(left < right),
+        })
+    }
+
+    fn exec_expr_1_num(left: f64, right: f64, op_code: &OpCode1) -> Option<Value> {
+        Some(match op_code {
+            OpCode1::Equal => Value::Bool(left == right),
+            OpCode1::NotEq => Value::Bool(left != right),
+            OpCode1::EqGreaterThan => Value::Bool(left >= right),
+            OpCode1::EqLessThan => Value::Bool(left <= right),
+            OpCode1::GreaterThan => Value::Bool(left > right),
+            OpCode1::LessThan => Value::Bool(left < right),
+        })
+    }
+
+    fn exec_expr_2_bool(left: bool, right: bool, op_code: &OpCode2) -> Option<Value> {
+        match op_code {
+            OpCode2::Add => Some(Value::Bool(left || right)),
+            _ => None,
         }
     }
 
-    fn call_fnc(&mut self, fnc: (Rc<String>, &FncDef), arg: Value) -> Option<Value> {
-        let mut vars = HashMap::new();
-        vars.insert(fnc.0, arg);
-        self.stack.push(vars);
-        self.exec_func_def(fnc.1)
+    fn exec_expr_2_str(left: &String, right: &String, op_code: &OpCode2) -> Option<Value> {
+        match op_code {
+            OpCode2::Add => Some(Value::Str(Rc::new(format!("{}{}", left, right)))),
+            _ => None,
+        }
+    }
+
+    fn exec_expr_2_num(left: f64, right: f64, op_code: &OpCode2) -> Option<Value> {
+        match op_code {
+            OpCode2::Add => Some(Value::Num(left + right)),
+            OpCode2::Sub => Some(Value::Num(left - right)),
+        }
+    }
+
+    fn exec_expr_2_list(
+        left: &Vec<Rc<Value>>,
+        right: &Vec<Rc<Value>>,
+        op_code: &OpCode2,
+    ) -> Option<Value> {
+        match op_code {
+            OpCode2::Add => Some(Value::List({
+                let mut res = vec![];
+                for i in left {
+                    res.push(Rc::clone(i));
+                }
+                for i in right {
+                    res.push(Rc::clone(i));
+                }
+                res
+            })),
+            OpCode2::Sub => None,
+        }
     }
 }
