@@ -8,9 +8,10 @@ use ast::*;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-struct RunTime {
+struct RunTime<'a> {
     stack: Vec<HashMap<Rc<String>, Rc<Value>>>,
     parser: syntax::ExprParser,
+    rand: Box<dyn FnMut(u32) -> u32 + 'a>,
 }
 
 enum Value {
@@ -22,11 +23,12 @@ enum Value {
     Fnc(Rc<String>, Rc<FncDef>),
 }
 
-impl RunTime {
-    pub fn new() -> Self {
+impl<'a> RunTime<'a> {
+    pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         Self {
             stack: vec![HashMap::new()],
             parser: syntax::ExprParser::new(),
+            rand: Box::new(rand),
         }
     }
 
@@ -197,7 +199,22 @@ impl RunTime {
     }
 
     fn exec_expr_4(&mut self, expr_4: &Expr4) -> Option<Value> {
-        unimplemented!();
+        match expr_4 {
+            Expr4::Expr4(left, right, op_code) => {
+                let left = self.exec_expr_4(left);
+                let right = self.exec_term(right);
+                if let (Some(left), Some(right)) = (left, right) {
+                    if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                        self.exec_expr_4_num(left, right, op_code)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Expr4::Term(term) => self.exec_term(term),
+        }
     }
     fn exec_term(&mut self, term: &Term) -> Option<Value> {
         unimplemented!();
@@ -298,6 +315,20 @@ impl RunTime {
             OpCode3::Multi => Some(Value::Num(left * right)),
             OpCode3::Div => Some(Value::Num(left / right)),
             OpCode3::Mod => Some(Value::Num(left % right)),
+        }
+    }
+
+    fn exec_expr_4_num(&mut self, left: f64, right: f64, op_code: &OpCode4) -> Option<Value> {
+        match op_code {
+            OpCode4::Dice => {
+                let num = left.floor() as usize;
+                let a = right.floor() as u32;
+                let mut res = 0;
+                for i in 0..num {
+                    res += (self.rand)(a);
+                }
+                Some(Value::Num(res as f64))
+            }
         }
     }
 }
