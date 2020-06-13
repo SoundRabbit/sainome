@@ -207,7 +207,9 @@ impl RunTime {
         let mut vars = HashMap::new();
         vars.insert(fnc.0, arg);
         self.stack.push(vars);
-        self.exec_func_def(fnc.1)
+        let res = self.exec_func_def(fnc.1);
+        self.stack.pop();
+        res
     }
 
     fn exec_expr_1_bool(left: bool, right: bool, op_code: &OpCode1) -> Option<Value> {
