@@ -1,33 +1,66 @@
 #[derive(Debug)]
-pub enum Expr {
-    Expr {
-        left: Box<Expr>,
-        right: Factor,
-        opr: Opr,
+pub enum Expr0 {
+    Expr0 {
+        left: Box<Expr0>,
+        right: Expr1,
+        op_code: OpCode0,
     },
-    Factor(Factor),
+    Expr1(Expr1),
 }
 
 #[derive(Debug)]
-pub enum Factor {
-    Factor {
-        left: Box<Factor>,
+pub enum OpCode0 {
+    Equal,
+    NotEq,
+    GreaterThan,
+    LessThan,
+    EqGreaterThan,
+    EqLessThan,
+}
+
+#[derive(Debug)]
+pub enum Expr1 {
+    Expr1 {
+        left: Box<Expr1>,
+        right: Expr2,
+        op_code: OpCode1,
+    },
+    Expr2(Expr2),
+}
+
+#[derive(Debug)]
+pub enum OpCode1 {
+    Add,
+    Sub,
+}
+
+#[derive(Debug)]
+pub enum Expr2 {
+    Expr2 {
+        left: Box<Expr2>,
         right: Term,
-        opr: Opr,
+        op_code: OpCode2,
     },
     Term(Term),
 }
 
 #[derive(Debug)]
-pub enum Term {
-    Num(i32),
-    Expr(Box<Expr>),
+pub enum OpCode2 {
+    Multi,
+    Div,
+    Mod,
 }
 
 #[derive(Debug)]
-pub enum Opr {
-    Add,
-    Sub,
-    Multi,
-    Div,
+pub enum Term {
+    Literal(Literal),
+    Expr0(Box<Expr0>),
+}
+
+#[derive(Debug)]
+pub enum Literal {
+    Num(f64),
+    Str(String),
+    Ident(String),
+    Ref(Vec<String>),
 }

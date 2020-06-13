@@ -1,25 +1,40 @@
 use std::str::FromStr;
-use crate::ast::{Expr, Factor, Term, Opr};
+use crate::ast::*;
 
 grammar;
 
-pub Expr: Expr = {
-    <l:Expr> "+" <r:Factor> => Expr::Expr {left: Box::new(l), right: r, opr: Opr::Add},
-    <l:Expr> "-" <r:Factor> => Expr::Expr {left: Box::new(l), right: r, opr: Opr::Sub},
-    Factor => Expr::Factor(<>),
+pub Expr0: Expr0 = {
+    <l: Expr0> "==" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::Equal},
+    <l: Expr0> "!=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::NotEq},
+    <l: Expr0> ">=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::EqGreaterThan},
+    <l: Expr0> "<=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::EqLessThan},
+    <l: Expr0> ">" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::GreaterThan},
+    <l: Expr0> "<" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::LessThan},
+    Expr1 => Expr0::Expr1(<>),
 };
 
-Factor: Factor = {
-    <l:Factor> "*" <r:Term> => Factor::Factor {left: Box::new(l), right: r, opr: Opr::Multi},
-    <l:Factor> "/" <r:Term> => Factor::Factor {left: Box::new(l), right: r, opr: Opr::Div},
-    Term => Factor::Term(<>),
-};
+Expr1: Expr1 = {
+    <l: Expr1> "+" <r:Expr2> => Expr1::Expr1 {left: Box::new(l), right: r, op_code: OpCode1::Add},
+    <l: Expr1> "-" <r:Expr2> => Expr1::Expr1 {left: Box::new(l), right: r, op_code: OpCode1::Sub},
+    Expr2 => Expr1::Expr2(<>),
+}
+
+Expr2: Expr2 = {
+    <l: Expr2> r"\*" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Multi},
+    <l: Expr2> "/" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Div},
+    <l: Expr2> "%" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Mod},
+    Term => Expr2::Term(<>),
+}
 
 Term: Term = {
-    Num => Term::Num(<>),
-    "(" <Expr> ")" => Term::Expr(Box::new(<>)),
+    Literal => Term::Literal(<>),
+    "(" <Expr0> ")" => Term::Expr0(Box::new(<>)),
 };
 
-Num: i32 = {
-    r"[0-9]+" => i32::from_str(<>).unwrap(),
+Literal: Literal = {
+    Num => Literal::Num(<>)
+}
+
+Num: f64 = {
+    r"[0-9]+(\.[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
