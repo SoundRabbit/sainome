@@ -171,11 +171,29 @@ impl RunTime {
                     None
                 }
             }
+            Expr2::Expr3(expr_3) => self.exec_expr_3(expr_3),
         }
     }
 
     fn exec_expr_3(&mut self, expr_3: &Expr3) -> Option<Value> {
-        unimplemented!();
+        match expr_3 {
+            Expr3::Expr3(left, right, op_code) => {
+                let left = self.exec_expr_3(left);
+                let right = self.exec_expr_4(right);
+                if let (Some(left), Some(right)) = (left, right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                        Self::exec_expr_3_bool(left, right, op_code)
+                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                        Self::exec_expr_3_num(left, right, op_code)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Expr3::Expr4(expr_4) => self.exec_expr_4(expr_4),
+        }
     }
 
     fn exec_expr_4(&mut self, expr_4: &Expr4) -> Option<Value> {
@@ -263,6 +281,21 @@ impl RunTime {
                 res
             })),
             OpCode2::Sub => None,
+        }
+    }
+
+    fn exec_expr_3_bool(left: bool, right: bool, op_code: &OpCode3) -> Option<Value> {
+        match op_code {
+            OpCode3::Multi => Some(Value::Bool(left && right)),
+            _ => None,
+        }
+    }
+
+    fn exec_expr_3_num(left: f64, right: f64, op_code: &OpCode3) -> Option<Value> {
+        match op_code {
+            OpCode3::Multi => Some(Value::Num(left * right)),
+            OpCode3::Div => Some(Value::Num(left / right)),
+            OpCode3::Mod => Some(Value::Num(left % right)),
         }
     }
 }
