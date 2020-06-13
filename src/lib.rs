@@ -45,8 +45,8 @@ impl RunTime {
         match expr {
             Expr::Assign(ident, fnc_def) => {
                 let len = self.stack.len();
-                if len > 0 {
-                    let value = self.exec_func_def(fnc_def);
+                let value = self.exec_func_def(fnc_def);
+                if let Some(value) = value {
                     self.stack[len - 1].insert(Rc::clone(ident), value);
                 }
                 Some(Value::None)
@@ -66,7 +66,7 @@ impl RunTime {
 
     fn exec_expr_0(&mut self, expr_0: &Expr0) -> Option<Value> {
         match expr_0 {
-            Expr0::Expr0(left_expr, right, op_code) => {
+            Expr0::Expr0(left, right, op_code) => {
                 let right = self.exec_expr_1(right);
                 if let Some(right) = right {
                     match op_code {
@@ -74,7 +74,7 @@ impl RunTime {
                             Value::Fnc(a, i) => {
                                 let mut value = vec![];
                                 loop {
-                                    let left = self.exec_expr_0(left_expr);
+                                    let left = self.exec_expr_0(left);
                                     let f = left
                                         .and_then(|left| {
                                             value.push(left.clone());
@@ -94,6 +94,28 @@ impl RunTime {
                                 }
                                 Some(Value::List(value))
                             }
+                            Value::Num(n) => {
+                                let mut value = vec![];
+                                loop {
+                                    let left = self.exec_expr_0(left);
+                                    let f = left.and_then(|left| {
+                                        value.push(left.clone());
+                                        match left {
+                                            Value::Num(m) => Some(m >= n),
+                                            _ => None,
+                                        }
+                                    });
+                                    if let Some(f) = f {
+                                        if !f {
+                                            break;
+                                        }
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                                Some(Value::List(value))
+                            }
+                            _ => None,
                         },
                     }
                 } else {
@@ -105,7 +127,45 @@ impl RunTime {
     }
 
     fn exec_expr_1(&mut self, expr_1: &Expr1) -> Option<Value> {
+        match expr_1 {
+            Expr1::Expr1(left, right, op_code) => {
+                let left = self.exec_expr_1(left);
+                let right = self.exec_expr_2(right);
+                if let (Some(left), Some(right)) = (left, right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                        Some(Self::exec_expr_1_bool(left, right, op_code))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Expr1::Expr2(expr_2) => self.exec_expr_2(expr_2),
+        }
+    }
+
+    fn exec_expr_2(&mut self, expr_2: &Expr2) -> Option<Value> {
         unimplemented!();
+    }
+
+    fn exec_expr_3(&mut self, expr_3: &Expr3) -> Option<Value> {
+        unimplemented!();
+    }
+
+    fn exec_expr_4(&mut self, expr_4: &Expr4) -> Option<Value> {
+        unimplemented!();
+    }
+
+    fn exec_expr_1_bool(left: bool, right: bool, op_code: &OpCode1) -> Value {
+        match op_code {
+            OpCode1::Equal => Value::Bool(left == right),
+            OpCode1::NotEq => Value::Bool(left != right),
+            OpCode1::EqGreaterThan => Value::Bool(left >= right),
+            OpCode1::EqLessThan => Value::Bool(left <= right),
+            OpCode1::GreaterThan => Value::Bool(left > right),
+            OpCode1::LessThan => Value::Bool(left < right),
+        }
     }
 
     fn call_fnc(&mut self, fnc: (Rc<String>, &FncDef), arg: Value) -> Option<Value> {
