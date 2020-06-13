@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr0 {
     Expr0 {
         left: Box<Expr0>,
@@ -8,7 +8,7 @@ pub enum Expr0 {
     Expr1(Expr1),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OpCode0 {
     Equal,
     NotEq,
@@ -18,7 +18,7 @@ pub enum OpCode0 {
     EqLessThan,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr1 {
     Expr1 {
         left: Box<Expr1>,
@@ -28,13 +28,13 @@ pub enum Expr1 {
     Expr2(Expr2),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OpCode1 {
     Add,
     Sub,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr2 {
     Expr2 {
         left: Box<Expr2>,
@@ -44,20 +44,20 @@ pub enum Expr2 {
     Term(Term),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OpCode2 {
     Multi,
     Div,
     Mod,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Term {
     Literal(Literal),
     Expr0(Box<Expr0>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Literal {
     Num(f64),
     Str(String),
