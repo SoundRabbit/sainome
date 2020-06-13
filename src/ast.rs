@@ -85,7 +85,7 @@ pub enum Term {
 #[derive(Debug, PartialEq)]
 pub enum Literal {
     Num(f64),
-    Str(String),
-    Ident(String),
+    Str(Rc<String>),
+    Ident(Rc<String>),
     Ref(Vec<String>),
 }

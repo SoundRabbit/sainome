@@ -75,7 +75,7 @@ SemicolonList<T>: Vec<T> = {
 
 Literal: Literal = {
     Num => Literal::Num(<>),
-    Ident => Literal::Ident(<>),
+    Ident => Literal::Ident(Rc::new(<>)),
 }
 
 Num: f64 = {

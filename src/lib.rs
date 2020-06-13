@@ -80,7 +80,7 @@ impl<'a> RunTime<'a> {
                                         .and_then(|left| {
                                             let left = Rc::new(left);
                                             value.push(Rc::clone(&left));
-                                            self.call_fnc((a, &i), Rc::clone(&left))
+                                            self.call_fnc((Rc::clone(&a), &i), Rc::clone(&left))
                                         })
                                         .and_then(|f| match f {
                                             Value::Bool(f) => Some(f),
@@ -135,12 +135,12 @@ impl<'a> RunTime<'a> {
                 let left = self.exec_expr_1(left);
                 let right = self.exec_expr_2(right);
                 if let (Some(left), Some(right)) = (left, right) {
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_1_bool(left, right, op_code)
-                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (&left, &right) {
+                        Self::exec_expr_1_bool(*left, *right, op_code)
+                    } else if let (Value::Str(left), Value::Str(right)) = (&left, &right) {
                         Self::exec_expr_1_str(&left, &right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_1_num(left, right, op_code)
+                    } else if let (Value::Num(left), Value::Num(right)) = (&left, &right) {
+                        Self::exec_expr_1_num(*left, *right, op_code)
                     } else {
                         None
                     }
@@ -158,13 +158,13 @@ impl<'a> RunTime<'a> {
                 let left = self.exec_expr_2(left);
                 let right = self.exec_expr_3(right);
                 if let (Some(left), Some(right)) = (left, right) {
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_2_bool(left, right, op_code)
-                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (&left, &right) {
+                        Self::exec_expr_2_bool(*left, *right, op_code)
+                    } else if let (Value::Str(left), Value::Str(right)) = (&left, &right) {
                         Self::exec_expr_2_str(&left, &right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_2_num(left, right, op_code)
-                    } else if let (Value::List(left), Value::List(right)) = (left, right) {
+                    } else if let (Value::Num(left), Value::Num(right)) = (&left, &right) {
+                        Self::exec_expr_2_num(*left, *right, op_code)
+                    } else if let (Value::List(left), Value::List(right)) = (&left, &right) {
                         Self::exec_expr_2_list(&left, &right, op_code)
                     } else {
                         None
@@ -182,11 +182,11 @@ impl<'a> RunTime<'a> {
             Expr3::Expr3(left, right, op_code) => {
                 let left = self.exec_expr_3(left);
                 let right = self.exec_expr_4(right);
-                if let (Some(left), Some(right)) = (left, right) {
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_3_bool(left, right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_3_num(left, right, op_code)
+                if let (Some(left), Some(right)) = (&left, &right) {
+                    if let (Value::Bool(left), Value::Bool(right)) = (&left, &right) {
+                        Self::exec_expr_3_bool(*left, *right, op_code)
+                    } else if let (Value::Num(left), Value::Num(right)) = (&left, &right) {
+                        Self::exec_expr_3_num(*left, *right, op_code)
                     } else {
                         None
                     }
@@ -216,7 +216,34 @@ impl<'a> RunTime<'a> {
             Expr4::Term(term) => self.exec_term(term),
         }
     }
+
     fn exec_term(&mut self, term: &Term) -> Option<Value> {
+        match term {
+            Term::Literal(literal) => self.exec_literal(literal),
+            Term::List(list) => {
+                let mut values = vec![];
+                for item in list {
+                    if let Some(value) = self.exec_expr(item) {
+                        values.push(Rc::new(value));
+                    } else {
+                        return None;
+                    }
+                }
+                Some(Value::List(values))
+            }
+            Term::Expr(exprs) => {
+                self.stack.push(HashMap::new());
+                let mut res = None;
+                for expr in exprs {
+                    res = self.exec_expr(expr);
+                }
+                self.stack.pop();
+                res
+            }
+        }
+    }
+
+    fn exec_literal(&mut self, literal: &Literal) -> Option<Value> {
         unimplemented!();
     }
 
