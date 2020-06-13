@@ -20,10 +20,15 @@ Expr1: Expr1 = {
 }
 
 Expr2: Expr2 = {
-    <l: Expr2> r"\*" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Multi},
-    <l: Expr2> "/" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Div},
-    <l: Expr2> "%" <r:Term> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Mod},
-    Term => Expr2::Term(<>),
+    <l: Expr2> r"\*" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Multi},
+    <l: Expr2> "/" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Div},
+    <l: Expr2> "%" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Mod},
+    Expr3 => Expr2::Expr3(<>),
+}
+
+Expr3: Expr3 = {
+    <l: Expr3> "d" <r: Term> => Expr3::Expr3 {left: Box::new(l), right: r, op_code: OpCode3::Dice},
+    Term => Expr3::Term(<>),
 }
 
 Term: Term = {

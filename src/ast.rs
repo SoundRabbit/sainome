@@ -38,10 +38,10 @@ pub enum OpCode1 {
 pub enum Expr2 {
     Expr2 {
         left: Box<Expr2>,
-        right: Term,
+        right: Expr3,
         op_code: OpCode2,
     },
-    Term(Term),
+    Expr3(Expr3),
 }
 
 #[derive(Debug, PartialEq)]
@@ -49,6 +49,21 @@ pub enum OpCode2 {
     Multi,
     Div,
     Mod,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Expr3 {
+    Expr3 {
+        left: Box<Expr3>,
+        right: Term,
+        op_code: OpCode3,
+    },
+    Term(Term),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum OpCode3 {
+    Dice,
 }
 
 #[derive(Debug, PartialEq)]
