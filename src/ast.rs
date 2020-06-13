@@ -1,15 +1,22 @@
 #[derive(Debug, PartialEq)]
 pub enum Expr0 {
-    Expr0 {
-        left: Box<Expr0>,
-        right: Expr1,
-        op_code: OpCode0,
-    },
+    Expr0(Box<Expr0>, Expr1, OpCode0),
     Expr1(Expr1),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum OpCode0 {
+    At,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Expr1 {
+    Expr1(Box<Expr1>, Expr2, OpCode1),
+    Expr2(Expr2),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum OpCode1 {
     Equal,
     NotEq,
     GreaterThan,
@@ -19,50 +26,38 @@ pub enum OpCode0 {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Expr1 {
-    Expr1 {
-        left: Box<Expr1>,
-        right: Expr2,
-        op_code: OpCode1,
-    },
-    Expr2(Expr2),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum OpCode1 {
-    Add,
-    Sub,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum Expr2 {
-    Expr2 {
-        left: Box<Expr2>,
-        right: Expr3,
-        op_code: OpCode2,
-    },
+    Expr2(Box<Expr2>, Expr3, OpCode2),
     Expr3(Expr3),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum OpCode2 {
+    Add,
+    Sub,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Expr3 {
+    Expr3(Box<Expr3>, Expr4, OpCode3),
+    Expr4(Expr4),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum OpCode3 {
     Multi,
     Div,
     Mod,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Expr3 {
-    Expr3 {
-        left: Box<Expr3>,
-        right: Term,
-        op_code: OpCode3,
-    },
+pub enum Expr4 {
+    Expr4(Box<Expr4>, Term, OpCode4),
     Term(Term),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum OpCode3 {
+pub enum OpCode4 {
     Dice,
 }
 
@@ -79,4 +74,11 @@ pub enum Literal {
     Str(String),
     Ident(String),
     Ref(Vec<String>),
+    Function(Pattern, Box<Expr0>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Pattern {
+    Ident(String),
+    List(Vec<Pattern>),
 }

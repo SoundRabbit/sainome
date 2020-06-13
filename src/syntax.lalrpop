@@ -4,31 +4,36 @@ use crate::ast::*;
 grammar;
 
 pub Expr0: Expr0 = {
-    <l: Expr0> "==" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::Equal},
-    <l: Expr0> "!=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::NotEq},
-    <l: Expr0> ">=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::EqGreaterThan},
-    <l: Expr0> "<=" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::EqLessThan},
-    <l: Expr0> ">" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::GreaterThan},
-    <l: Expr0> "<" <r: Expr1> => Expr0::Expr0 {left: Box::new(l), right: r, op_code: OpCode0::LessThan},
+    <l: Expr0> "@" <r: Expr1> => Expr0::Expr0(Box::new(l), r, OpCode0::At),
     Expr1 => Expr0::Expr1(<>),
-};
-
-Expr1: Expr1 = {
-    <l: Expr1> "+" <r:Expr2> => Expr1::Expr1 {left: Box::new(l), right: r, op_code: OpCode1::Add},
-    <l: Expr1> "-" <r:Expr2> => Expr1::Expr1 {left: Box::new(l), right: r, op_code: OpCode1::Sub},
-    Expr2 => Expr1::Expr2(<>),
 }
 
+Expr1: Expr1 = {
+    <l: Expr1> "==" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::Equal),
+    <l: Expr1> "!=" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::NotEq),
+    <l: Expr1> ">=" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::EqGreaterThan),
+    <l: Expr1> "<=" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::EqLessThan),
+    <l: Expr1> ">" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::GreaterThan),
+    <l: Expr1> "<" <r: Expr2> => Expr1::Expr1(Box::new(l), r, OpCode1::LessThan),
+    Expr2 => Expr1::Expr2(<>),
+};
+
 Expr2: Expr2 = {
-    <l: Expr2> r"\*" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Multi},
-    <l: Expr2> "/" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Div},
-    <l: Expr2> "%" <r:Expr3> => Expr2::Expr2 {left: Box::new(l), right: r, op_code: OpCode2::Mod},
+    <l: Expr2> "+" <r:Expr3> => Expr2::Expr2(Box::new(l), r, OpCode2::Add),
+    <l: Expr2> "-" <r:Expr3> => Expr2::Expr2(Box::new(l), r, OpCode2::Sub),
     Expr3 => Expr2::Expr3(<>),
 }
 
 Expr3: Expr3 = {
-    <l: Expr3> "d" <r: Term> => Expr3::Expr3 {left: Box::new(l), right: r, op_code: OpCode3::Dice},
-    Term => Expr3::Term(<>),
+    <l: Expr3> r"\*" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Multi),
+    <l: Expr3> "/" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Div),
+    <l: Expr3> "%" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Mod),
+    Expr4 => Expr3::Expr4(<>),
+}
+
+Expr4: Expr4 = {
+    <l: Expr4> "d" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
+    Term => Expr4::Term(<>),
 }
 
 Term: Term = {
@@ -49,9 +54,14 @@ CommaList<T>: Vec<T> = {
 }
 
 Literal: Literal = {
-    Num => Literal::Num(<>)
+    Num => Literal::Num(<>),
+    Ident => Literal::Ident(<>),
 }
 
 Num: f64 = {
     r"[0-9]+(\.[0-9]+)?" => f64::from_str(<>).unwrap(),
 };
+
+Ident: String = {
+    r"[a-zA-z]+" => String::from(<>),
+}
