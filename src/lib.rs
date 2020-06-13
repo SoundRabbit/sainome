@@ -2,95 +2,116 @@
 extern crate lalrpop_util;
 
 mod ast;
-
-lalrpop_mod!(pub syntax);
+lalrpop_mod!(syntax);
 
 use ast::*;
+use std::collections::HashMap;
+use std::rc::Rc;
 
-fn expr0_literal(literal: Literal) -> Expr0 {
-    Expr0::Expr1(Expr1::Expr2(Expr2::Expr3(Expr3::Expr4(Expr4::Term(
-        (Term::Literal(literal)),
-    )))))
+struct RunTime {
+    stack: Vec<HashMap<Rc<String>, Value>>,
+    parser: syntax::ExprParser,
 }
 
-#[test]
-fn parse_num_literal_by_ok_int() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("22").ok(),
-        Some(expr0_literal(Literal::Num(22.0)))
-    );
+#[derive(Clone)]
+enum Value {
+    None,
+    Bool(bool),
+    Str(String),
+    Num(f64),
+    List(Vec<Value>),
+    Fnc(Rc<String>, Rc<FncDef>),
 }
 
-#[test]
-fn parse_num_literal_by_ok_float() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("22.01").ok(),
-        Some(expr0_literal(Literal::Num(22.01)))
-    );
-}
+impl RunTime {
+    pub fn new() -> Self {
+        Self {
+            stack: vec![HashMap::new()],
+            parser: syntax::ExprParser::new(),
+        }
+    }
 
-#[test]
-fn parse_num_literal_by_err_0() {
-    assert_eq!(syntax::Expr0Parser::new().parse("2.").ok(), None);
-}
+    pub fn exec(&mut self, code: &str) -> Option<Value> {
+        let ast = self.parser.parse(code).ok();
+        let value = if let Some(expr) = &ast {
+            self.exec_expr(expr)
+        } else {
+            None
+        };
+        value
+    }
 
-#[test]
-fn parse_num_literal_by_err_1() {
-    assert_eq!(syntax::Expr0Parser::new().parse("#4").ok(), None);
-}
+    fn exec_expr(&mut self, expr: &Expr) -> Option<Value> {
+        match expr {
+            Expr::Assign(ident, fnc_def) => {
+                let len = self.stack.len();
+                if len > 0 {
+                    let value = self.exec_func_def(fnc_def);
+                    self.stack[len - 1].insert(Rc::clone(ident), value);
+                }
+                Some(Value::None)
+            }
+            Expr::FncDef(fnc_def) => self.exec_func_def(fnc_def),
+        }
+    }
 
-#[test]
-fn parse_list_term_by_ok_empty() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("[ ]").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Expr3(Expr3::Expr4(
-            Expr4::Term(Term::List(vec![]))
-        )))))
-    );
-}
+    fn exec_func_def(&mut self, fnc_def: &FncDef) -> Option<Value> {
+        match fnc_def {
+            FncDef::FncDef(arg, implement) => {
+                Some(Value::Fnc(Rc::clone(arg), Rc::clone(implement)))
+            }
+            FncDef::Expr0(expr_0) => self.exec_expr_0(expr_0),
+        }
+    }
 
-#[test]
-fn parse_list_term_by_ok_expr0() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("[1]").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Expr3(Expr3::Expr4(
-            Expr4::Term(Term::List(vec![expr0_literal(Literal::Num(1.0))]))
-        )))))
-    );
-}
+    fn exec_expr_0(&mut self, expr_0: &Expr0) -> Option<Value> {
+        match expr_0 {
+            Expr0::Expr0(left_expr, right, op_code) => {
+                let right = self.exec_expr_1(right);
+                if let Some(right) = right {
+                    match op_code {
+                        OpCode0::At => match right {
+                            Value::Fnc(a, i) => {
+                                let mut value = vec![];
+                                loop {
+                                    let left = self.exec_expr_0(left_expr);
+                                    let f = left
+                                        .and_then(|left| {
+                                            value.push(left.clone());
+                                            self.call_fnc((a, &i), left)
+                                        })
+                                        .and_then(|f| match f {
+                                            Value::Bool(f) => Some(f),
+                                            _ => None,
+                                        });
+                                    if let Some(f) = f {
+                                        if !f {
+                                            break;
+                                        }
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                                Some(Value::List(value))
+                            }
+                        },
+                    }
+                } else {
+                    None
+                }
+            }
+            Expr0::Expr1(expr_1) => self.exec_expr_1(expr_1),
+        }
+    }
 
-#[test]
-fn parse_list_term_by_ok_list_1() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("[1,2,3]").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Expr3(Expr3::Expr4(
-            Expr4::Term(Term::List(vec![
-                expr0_literal(Literal::Num(1.0)),
-                expr0_literal(Literal::Num(2.0)),
-                expr0_literal(Literal::Num(3.0))
-            ]))
-        )))))
-    );
-}
+    fn exec_expr_1(&mut self, expr_1: &Expr1) -> Option<Value> {
+        unimplemented!();
+    }
 
-#[test]
-fn parse_list_term_by_ok_list_2() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("[1,2,3,]").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Expr3(Expr3::Expr4(
-            Expr4::Term(Term::List(vec![
-                expr0_literal(Literal::Num(1.0)),
-                expr0_literal(Literal::Num(2.0)),
-                expr0_literal(Literal::Num(3.0))
-            ]))
-        )))))
-    );
-}
-
-#[test]
-fn parse_ident_literal_by_ok() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("ident").ok(),
-        Some(expr0_literal(Literal::Ident(String::from("ident"))))
-    );
+    fn call_fnc(&mut self, fnc: (Rc<String>, &FncDef), arg: Value) -> Option<Value> {
+        let mut vars = HashMap::new();
+        vars.insert(fnc.0, arg);
+        self.stack.push(vars);
+        self.exec_func_def(fnc.1)
+    }
 }

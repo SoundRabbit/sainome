@@ -1,9 +1,20 @@
 use std::str::FromStr;
 use crate::ast::*;
+use std::rc::Rc;
 
 grammar;
 
-pub Expr0: Expr0 = {
+pub Expr: Expr = {
+    <i: Ident> ":=" <f: FncDef> => Expr::Assign(Rc::new(i), f),
+    FncDef => Expr::FncDef(<>)
+}
+
+FncDef: FncDef = {
+    "\\" <a: Ident> "->" <i: FncDef> => FncDef::FncDef(Rc::new(a), Rc::new(i)),
+    Expr0 => FncDef::Expr0(<>),
+}
+
+Expr0: Expr0 = {
     <l: Expr0> "@" <r: Expr1> => Expr0::Expr0(Box::new(l), r, OpCode0::At),
     Expr1 => Expr0::Expr1(<>),
 }
@@ -25,7 +36,7 @@ Expr2: Expr2 = {
 }
 
 Expr3: Expr3 = {
-    <l: Expr3> r"\*" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Multi),
+    <l: Expr3> "*" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Multi),
     <l: Expr3> "/" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Div),
     <l: Expr3> "%" <r:Expr4> => Expr3::Expr3(Box::new(l), r, OpCode3::Mod),
     Expr4 => Expr3::Expr4(<>),
@@ -33,13 +44,14 @@ Expr3: Expr3 = {
 
 Expr4: Expr4 = {
     <l: Expr4> "d" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
+    <l: Expr4> "D" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
     Term => Expr4::Term(<>),
 }
 
 Term: Term = {
     Literal => Term::Literal(<>),
-    "[" <CommaList<Expr0>> "]" => Term::List(<>),
-    "(" <Expr0> ")" => Term::Expr0(Box::new(<>)),
+    "[" <CommaList<Expr>> "]" => Term::List(<>),
+    "(" <SemicolonList<Expr>> ")" => Term::Expr(<>),
 };
 
 CommaList<T>: Vec<T> = {
@@ -53,6 +65,14 @@ CommaList<T>: Vec<T> = {
     }
 }
 
+SemicolonList<T>: Vec<T> = {
+    <xs: (<T> ";")*> <x: T> => {
+        let mut xs = xs;
+        xs.push(x);
+        xs
+    }
+}
+
 Literal: Literal = {
     Num => Literal::Num(<>),
     Ident => Literal::Ident(<>),
@@ -63,5 +83,5 @@ Num: f64 = {
 };
 
 Ident: String = {
-    r"[a-zA-z]+" => String::from(<>),
+    r"[A-z]+" => String::from(<>),
 }

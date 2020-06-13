@@ -1,3 +1,17 @@
+use std::rc::Rc;
+
+#[derive(Debug, PartialEq)]
+pub enum Expr {
+    Assign(Rc<String>, FncDef),
+    FncDef(FncDef),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FncDef {
+    FncDef(Rc<String>, Rc<FncDef>),
+    Expr0(Expr0),
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Expr0 {
     Expr0(Box<Expr0>, Expr1, OpCode0),
@@ -64,8 +78,8 @@ pub enum OpCode4 {
 #[derive(Debug, PartialEq)]
 pub enum Term {
     Literal(Literal),
-    List(Vec<Expr0>),
-    Expr0(Box<Expr0>),
+    List(Vec<Expr>),
+    Expr(Vec<Expr>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -74,11 +88,4 @@ pub enum Literal {
     Str(String),
     Ident(String),
     Ref(Vec<String>),
-    Function(Pattern, Box<Expr0>),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Pattern {
-    Ident(String),
-    List(Vec<Pattern>),
 }

@@ -1,0 +1,116 @@
+   Compiling test_of_lalrpop v0.1.0 (/mnt/d/program/Sainome)
+warning: unused variable: `left`
+  --> src/lib.rs:69:21
+   |
+69 |                 let left = self.exec_expr_0(left);
+   |                     ^^^^ help: if this is intentional, prefix it with an underscore: `_left`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `right`
+  --> src/lib.rs:70:21
+   |
+70 |                 let right = self.exec_expr_1(right);
+   |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_right`
+
+warning: unused variable: `expr_1`
+  --> src/lib.rs:81:31
+   |
+81 |     fn exec_expr_1(&mut self, expr_1: &Expr1) -> Value {
+   |                               ^^^^^^ help: if this is intentional, prefix it with an underscore: `_expr_1`
+
+warning: unused variable: `fnc`
+  --> src/lib.rs:85:28
+   |
+85 |     fn call_fnc(&mut self, fnc: (&String, &FncDef), args: &Value) -> Value {
+   |                            ^^^ help: if this is intentional, prefix it with an underscore: `_fnc`
+
+warning: unused variable: `args`
+  --> src/lib.rs:85:53
+   |
+85 |     fn call_fnc(&mut self, fnc: (&String, &FncDef), args: &Value) -> Value {
+   |                                                     ^^^^ help: if this is intentional, prefix it with an underscore: `_args`
+
+warning: variant is never constructed: `Str`
+  --> src/ast.rs:88:5
+   |
+88 |     Str(String),
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: variant is never constructed: `Ref`
+  --> src/ast.rs:90:5
+   |
+90 |     Ref(Vec<String>),
+   |     ^^^^^^^^^^^^^^^^
+
+warning: method is never used: `new`
+   --> /mnt/d/program/Sainome/target/debug/build/test_of_lalrpop-cc4e561c45820d53/out/syntax.rs:559:9
+    |
+559 |         pub fn new() -> ExprParser {
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function is never used: `new_builder`
+    --> /mnt/d/program/Sainome/target/debug/build/test_of_lalrpop-cc4e561c45820d53/out/syntax.rs:1824:12
+     |
+1824 |     pub fn new_builder() -> __lalrpop_util::lexer::MatcherBuilder {
+     |            ^^^^^^^^^^^
+
+warning: struct is never constructed: `RunTime`
+  --> src/lib.rs:11:8
+   |
+11 | struct RunTime {
+   |        ^^^^^^^
+
+warning: enum is never used: `Value`
+  --> src/lib.rs:17:6
+   |
+17 | enum Value {
+   |      ^^^^^
+
+warning: method is never used: `new`
+  --> src/lib.rs:26:5
+   |
+26 |     pub fn new() -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `exec`
+  --> src/lib.rs:34:5
+   |
+34 |     pub fn exec(&mut self, code: &str) -> Option<Value> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `exec_expr`
+  --> src/lib.rs:45:5
+   |
+45 |     fn exec_expr(&mut self, expr: &Expr) -> Value {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `exec_func_def`
+  --> src/lib.rs:59:5
+   |
+59 |     fn exec_func_def(&mut self, fnc_def: &FncDef) -> Value {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `exec_expr_0`
+  --> src/lib.rs:66:5
+   |
+66 |     fn exec_expr_0(&mut self, expr_0: &Expr0) -> Value {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `exec_expr_1`
+  --> src/lib.rs:81:5
+   |
+81 |     fn exec_expr_1(&mut self, expr_1: &Expr1) -> Value {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method is never used: `call_fnc`
+  --> src/lib.rs:85:5
+   |
+85 |     fn call_fnc(&mut self, fnc: (&String, &FncDef), args: &Value) -> Value {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 18 warnings emitted
+
+    Finished dev [unoptimized + debuginfo] target(s) in 2.22s
