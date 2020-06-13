@@ -28,8 +28,20 @@ Expr2: Expr2 = {
 
 Term: Term = {
     Literal => Term::Literal(<>),
+    "[" <CommaList<Expr0>> "]" => Term::List(<>),
     "(" <Expr0> ")" => Term::Expr0(Box::new(<>)),
 };
+
+CommaList<T>: Vec<T> = {
+    <xs: (<T> ",")*> <x: T?> => match x {
+        None => xs,
+        Some(x) => {
+            let mut xs = xs;
+            xs.push(x);
+            xs
+        }
+    }
+}
 
 Literal: Literal = {
     Num => Literal::Num(<>)

@@ -7,23 +7,15 @@ lalrpop_mod!(pub syntax);
 
 use ast::*;
 
-#[test]
-fn parse_num_literal_by_ok() {
-    assert_eq!(
-        syntax::Expr0Parser::new().parse("22").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::Literal(
-            Literal::Num(22.0)
-        )))))
-    );
+fn expr0_literal(literal: Literal) -> Expr0 {
+    Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::Literal(literal))))
 }
 
 #[test]
 fn parse_num_literal_by_ok_int() {
     assert_eq!(
         syntax::Expr0Parser::new().parse("22").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::Literal(
-            Literal::Num(22.0)
-        )))))
+        Some(expr0_literal(Literal::Num(22.0)))
     );
 }
 
@@ -31,9 +23,7 @@ fn parse_num_literal_by_ok_int() {
 fn parse_num_literal_by_ok_float() {
     assert_eq!(
         syntax::Expr0Parser::new().parse("22.01").ok(),
-        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::Literal(
-            Literal::Num(22.01)
-        )))))
+        Some(expr0_literal(Literal::Num(22.01)))
     );
 }
 
@@ -45,4 +35,46 @@ fn parse_num_literal_by_err_0() {
 #[test]
 fn parse_num_literal_by_err_1() {
     assert_eq!(syntax::Expr0Parser::new().parse("#4").ok(), None);
+}
+
+#[test]
+fn parse_list_term_by_ok_empty() {
+    assert_eq!(
+        syntax::Expr0Parser::new().parse("[ ]").ok(),
+        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::List(vec![])))))
+    );
+}
+
+#[test]
+fn parse_list_term_by_ok_expr0() {
+    assert_eq!(
+        syntax::Expr0Parser::new().parse("[1]").ok(),
+        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::List(vec![
+            expr0_literal(Literal::Num(1.0))
+        ])))))
+    );
+}
+
+#[test]
+fn parse_list_term_by_ok_list_1() {
+    assert_eq!(
+        syntax::Expr0Parser::new().parse("[1,2,3]").ok(),
+        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::List(vec![
+            expr0_literal(Literal::Num(1.0)),
+            expr0_literal(Literal::Num(2.0)),
+            expr0_literal(Literal::Num(3.0))
+        ])))))
+    );
+}
+
+#[test]
+fn parse_list_term_by_ok_list_2() {
+    assert_eq!(
+        syntax::Expr0Parser::new().parse("[1,2,3,]").ok(),
+        Some(Expr0::Expr1(Expr1::Expr2(Expr2::Term(Term::List(vec![
+            expr0_literal(Literal::Num(1.0)),
+            expr0_literal(Literal::Num(2.0)),
+            expr0_literal(Literal::Num(3.0))
+        ])))))
+    );
 }

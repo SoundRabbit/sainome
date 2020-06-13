@@ -54,6 +54,7 @@ pub enum OpCode2 {
 #[derive(Debug, PartialEq)]
 pub enum Term {
     Literal(Literal),
+    List(Vec<Expr0>),
     Expr0(Box<Expr0>),
 }
 
