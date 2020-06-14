@@ -265,41 +265,61 @@ impl<'a> RunTime<'a> {
         match fnc_call {
             FncCall::FncCall(fnc_call, arg) => {
                 let fnc = self.exec_fnc_call(fnc_call);
-                let arg = self.exec_term(arg);
-                if let (Some(fnc), Some(arg)) = (fnc, arg) {
+                if let Some(fnc) = fnc {
                     let fnc = fnc.as_ref();
                     match fnc {
-                        Value::Fnc(a, r) => {
-                            self.call_fnc((Rc::clone(a), Rc::clone(r)), Rc::clone(&arg))
+                        Value::Fnc(a, r) => match self.exec_term(arg) {
+                            Some(arg) => {
+                                self.call_fnc((Rc::clone(a), Rc::clone(r)), Rc::clone(&arg))
+                            }
+                            None => None,
+                        },
+                        Value::List(vs) => match self.exec_term(arg) {
+                            Some(arg) => match arg.as_ref() {
+                                Value::Num(n) => {
+                                    let n = n.floor();
+                                    let idx = if n >= 0.0 {
+                                        n as usize
+                                    } else {
+                                        vs.len() - (-n as usize)
+                                    };
+                                    vs.get(idx).map(|i| Rc::clone(i))
+                                }
+                                _ => None,
+                            },
+                            None => None,
+                        },
+                        Value::Str(v) => match self.exec_term(arg) {
+                            Some(arg) => match arg.as_ref() {
+                                Value::Num(n) => {
+                                    let n = n.floor();
+                                    let idx = if n >= 0.0 {
+                                        n as usize
+                                    } else {
+                                        v.len() - (-n as usize)
+                                    };
+                                    v.as_str()
+                                        .chars()
+                                        .collect::<Vec<char>>()
+                                        .get(idx)
+                                        .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
+                                }
+                                _ => None,
+                            },
+                            None => None,
+                        },
+                        Value::Num(v) => {
+                            let n = v.floor() as usize;
+                            let mut res = vec![];
+                            for _ in 0..n {
+                                if let Some(v) = self.exec_term(arg) {
+                                    res.push(v);
+                                } else {
+                                    return None;
+                                }
+                            }
+                            Some(Rc::new(Value::List(res)))
                         }
-                        Value::List(vs) => match arg.as_ref() {
-                            Value::Num(n) => {
-                                let n = n.floor();
-                                let idx = if n >= 0.0 {
-                                    n as usize
-                                } else {
-                                    vs.len() - (-n as usize)
-                                };
-                                vs.get(idx).map(|i| Rc::clone(i))
-                            }
-                            _ => None,
-                        },
-                        Value::Str(v) => match arg.as_ref() {
-                            Value::Num(n) => {
-                                let n = n.floor();
-                                let idx = if n >= 0.0 {
-                                    n as usize
-                                } else {
-                                    v.len() - (-n as usize)
-                                };
-                                v.as_str()
-                                    .chars()
-                                    .collect::<Vec<char>>()
-                                    .get(idx)
-                                    .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
-                            }
-                            _ => None,
-                        },
                         _ => None,
                     }
                 } else {
@@ -582,10 +602,11 @@ mod tests {
     }
 
     #[test]
-    fn at() {
+    fn counted_loop() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = run_time.exec(r"1d10@2>>map.\\x->x");
-        assert_eq!(result, Some(Rc::new(Value::Num(6.0))));
+        let x = run_time.exec(r"5.(5)");
+        let y = run_time.exec(r"[5,5,5,5,5]");
+        assert_eq!(x, y);
     }
 }
