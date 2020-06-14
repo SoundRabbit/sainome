@@ -73,6 +73,7 @@ pub enum Expr4 {
 #[derive(Debug, PartialEq)]
 pub enum OpCode4 {
     Dice,
+    Bice,
 }
 
 #[derive(Debug, PartialEq)]

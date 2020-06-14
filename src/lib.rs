@@ -437,16 +437,26 @@ impl<'a> RunTime<'a> {
 
     fn exec_expr_4_num(&mut self, left: f64, right: f64, op_code: &OpCode4) -> Option<Rc<Value>> {
         match op_code {
-            OpCode4::Dice => {
+            OpCode4::Dice => Some(Rc::new(Value::Num(self.exec_dice(left, right) as f64))),
+            OpCode4::Bice => {
+                let mut res = vec![];
                 let num = left.floor() as usize;
-                let a = right.floor() as u32;
-                let mut res = 0;
                 for _ in 0..num {
-                    res += (self.rand)(a) + 1;
+                    res.push(Rc::new(Value::Num(self.exec_dice(1.0, right))));
                 }
-                Some(Rc::new(Value::Num(res as f64)))
+                Some(Rc::new(Value::List(res)))
             }
         }
+    }
+
+    fn exec_dice(&mut self, num: f64, a: f64) -> f64 {
+        let num = num.floor() as usize;
+        let a = a.floor() as u32;
+        let mut res = 0;
+        for _ in 0..num {
+            res += (self.rand)(a) + 1;
+        }
+        res as f64
     }
 }
 
@@ -554,5 +564,13 @@ mod tests {
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"[1,2,3].(-1)");
         assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn at() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"1d6@2");
+        assert_eq!(result, Some(Rc::new(Value::Num(6.0))));
     }
 }
