@@ -466,10 +466,18 @@ mod tests {
     }
 
     #[test]
-    fn use_function() {
+    fn use_function_from_ident() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"(f:=\\x.x+1; f.2)");
+        assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn use_function_direct() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"(\\x.x+1).2");
         assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
     }
 }
