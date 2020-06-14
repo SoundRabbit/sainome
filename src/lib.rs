@@ -59,8 +59,8 @@ impl<'a> RunTime<'a> {
 
     fn exec_func_def(&mut self, fnc_def: &FncDef) -> Option<Rc<Value>> {
         match fnc_def {
-            FncDef::FncDef(arg, implement) => {
-                Some(Rc::new(Value::Fnc(Rc::clone(arg), Rc::clone(implement))))
+            FncDef::FncDef(arg, right) => {
+                Some(Rc::new(Value::Fnc(Rc::clone(arg), Rc::clone(right))))
             }
             FncDef::Expr0(expr_0) => self.exec_expr_0(expr_0),
         }
@@ -73,14 +73,17 @@ impl<'a> RunTime<'a> {
                 if let Some(right) = right {
                     match op_code {
                         OpCode0::At => match right.as_ref() {
-                            Value::Fnc(a, i) => {
+                            Value::Fnc(a, r) => {
                                 let mut value = vec![];
                                 loop {
                                     let left = self.exec_expr_0(left);
                                     let f = left
                                         .and_then(|left| {
                                             value.push(Rc::clone(&left));
-                                            self.call_fnc((Rc::clone(&a), &i), Rc::clone(&left))
+                                            self.call_fnc(
+                                                (Rc::clone(&a), Rc::clone(&r)),
+                                                Rc::clone(&left),
+                                            )
                                         })
                                         .and_then(|f| match f.as_ref() {
                                             Value::Bool(f) => Some(*f),
@@ -216,7 +219,28 @@ impl<'a> RunTime<'a> {
                     None
                 }
             }
-            Expr4::Term(term) => self.exec_term(term),
+            Expr4::FncCall(fnc_call) => self.exec_fnc_call(fnc_call),
+        }
+    }
+
+    fn exec_fnc_call(&mut self, fnc_call: &FncCall) -> Option<Rc<Value>> {
+        match fnc_call {
+            FncCall::FncCall(fnc_call, arg) => {
+                let fnc = self.exec_fnc_call(fnc_call);
+                let arg = self.exec_term(arg);
+                if let (Some(fnc), Some(arg)) = (fnc, arg) {
+                    let fnc = fnc.as_ref();
+                    match fnc {
+                        Value::Fnc(a, r) => {
+                            self.call_fnc((Rc::clone(a), Rc::clone(r)), Rc::clone(&arg))
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            FncCall::Term(term) => self.exec_term(term),
         }
     }
 
@@ -262,11 +286,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_fnc(&mut self, fnc: (Rc<String>, &FncDef), arg: Rc<Value>) -> Option<Rc<Value>> {
+    fn call_fnc(&mut self, fnc: (Rc<String>, Rc<FncDef>), arg: Rc<Value>) -> Option<Rc<Value>> {
         let mut vars = HashMap::new();
         vars.insert(fnc.0, arg);
         self.stack.push(vars);
-        let res = self.exec_func_def(fnc.1);
+        let res = self.exec_func_def(fnc.1.as_ref());
         self.stack.pop();
         res
     }
@@ -415,5 +439,37 @@ mod tests {
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("3/2");
         assert_eq!(result, Some(Rc::new(Value::Num(1.5))));
+    }
+
+    #[test]
+    fn use_block() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("3*(4+5)");
+        assert_eq!(result, Some(Rc::new(Value::Num(27.0))));
+    }
+
+    #[test]
+    fn use_sequence() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("3*(1+2; 2+3; 3+4)");
+        assert_eq!(result, Some(Rc::new(Value::Num(21.0))));
+    }
+
+    #[test]
+    fn use_var() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("(x:=10;x)");
+        assert_eq!(result, Some(Rc::new(Value::Num(10.0))));
+    }
+
+    #[test]
+    fn use_function() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"(f:=\\x.x+1; f.2)");
+        assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
     }
 }

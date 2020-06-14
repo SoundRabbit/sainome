@@ -10,7 +10,7 @@ pub Expr: Expr = {
 }
 
 FncDef: FncDef = {
-    "\\" <a: Ident> "->" <i: FncDef> => FncDef::FncDef(Rc::new(a), Rc::new(i)),
+    "\\\\" <a: Ident> "." <r: FncDef> => FncDef::FncDef(Rc::new(a), Rc::new(r)),
     Expr0 => FncDef::Expr0(<>),
 }
 
@@ -45,7 +45,12 @@ Expr3: Expr3 = {
 Expr4: Expr4 = {
     <l: Expr4> "d" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
     <l: Expr4> "D" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
-    Term => Expr4::Term(<>),
+    FncCall => Expr4::FncCall(<>),
+}
+
+FncCall: FncCall = {
+    <f: FncCall> "." <a: Term> => FncCall::FncCall(Box::new(f), a),
+    Term => FncCall::Term(<>)
 }
 
 Term: Term = {
@@ -83,5 +88,5 @@ Num: f64 = {
 };
 
 Ident: String = {
-    r"[A-z]+" => String::from(<>),
+    r"[A-Za-z]+" => String::from(<>),
 }
