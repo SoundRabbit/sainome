@@ -45,19 +45,38 @@ impl<'a> RunTime<'a> {
 
     fn exec_expr(&mut self, expr: &Expr) -> Option<Rc<Value>> {
         match expr {
-            Expr::Assign(ident, fnc_def) => {
+            Expr::Assign(ident, fnc_chain) => {
                 let len = self.stack.len();
-                let value = self.exec_func_def(fnc_def);
+                let value = self.exec_fnc_chain(fnc_chain);
                 if let Some(value) = value {
                     self.stack[len - 1].insert(Rc::clone(ident), Rc::clone(&value));
                 }
                 Some(Rc::new(Value::None))
             }
-            Expr::FncDef(fnc_def) => self.exec_func_def(fnc_def),
+            Expr::FncChain(fnc_chain) => self.exec_fnc_chain(fnc_chain),
         }
     }
 
-    fn exec_func_def(&mut self, fnc_def: &FncDef) -> Option<Rc<Value>> {
+    fn exec_fnc_chain(&mut self, fnc_chain: &FncChain) -> Option<Rc<Value>> {
+        match fnc_chain {
+            FncChain::FncChain(left, right) => {
+                let left = self.exec_fnc_chain(left);
+                let right = self.exec_fnc_def(right);
+                if let (Some(left), Some(right)) = (left, right) {
+                    let right = right.as_ref();
+                    match right {
+                        Value::Fnc(a, i) => self.call_fnc((Rc::clone(a), Rc::clone(i)), left),
+                        _ => Some(Rc::new(Value::None)),
+                    }
+                } else {
+                    None
+                }
+            }
+            FncChain::FncDef(fnc_def) => self.exec_fnc_def(fnc_def),
+        }
+    }
+
+    fn exec_fnc_def(&mut self, fnc_def: &FncDef) -> Option<Rc<Value>> {
         match fnc_def {
             FncDef::FncDef(arg, right) => {
                 Some(Rc::new(Value::Fnc(Rc::clone(arg), Rc::clone(right))))
@@ -376,7 +395,7 @@ impl<'a> RunTime<'a> {
         let mut vars = HashMap::new();
         vars.insert(fnc.0, arg);
         self.stack.push(vars);
-        let res = self.exec_func_def(fnc.1.as_ref());
+        let res = self.exec_fnc_def(fnc.1.as_ref());
         self.stack.pop();
         res
     }
@@ -608,5 +627,21 @@ mod tests {
         let x = run_time.exec(r"5.(5)");
         let y = run_time.exec(r"[5,5,5,5,5]");
         assert_eq!(x, y);
+    }
+
+    #[test]
+    fn fnc_chain_direct() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"2>>\\x.x+1");
+        assert_eq!(x, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn fnc_chain_with_ident() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"(f:=\\x.x+1; 2>>f)");
+        assert_eq!(x, Some(Rc::new(Value::Num(3.0))));
     }
 }

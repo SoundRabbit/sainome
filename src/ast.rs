@@ -2,7 +2,13 @@ use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Assign(Rc<String>, FncDef),
+    Assign(Rc<String>, FncChain),
+    FncChain(FncChain),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FncChain {
+    FncChain(Box<FncChain>, FncDef),
     FncDef(FncDef),
 }
 

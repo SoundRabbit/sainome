@@ -5,8 +5,13 @@ use std::rc::Rc;
 grammar;
 
 pub Expr: Expr = {
-    <i: Ident> ":=" <f: FncDef> => Expr::Assign(Rc::new(i), f),
-    FncDef => Expr::FncDef(<>)
+    <i: Ident> ":=" <f: FncChain> => Expr::Assign(Rc::new(i), f),
+    FncChain => Expr::FncChain(<>)
+}
+
+FncChain: FncChain = {
+    <l: FncChain> ">>" <r: FncDef> => FncChain::FncChain(Box::new(l), r),
+    FncDef => FncChain::FncDef(<>)
 }
 
 FncDef: FncDef = {
