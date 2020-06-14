@@ -219,7 +219,45 @@ impl<'a> RunTime<'a> {
                     None
                 }
             }
-            Expr4::FncCall(fnc_call) => self.exec_fnc_call(fnc_call),
+            Expr4::Unary(unary) => self.exec_expr_unary(unary),
+        }
+    }
+
+    fn exec_expr_unary(&mut self, unary: &Unary) -> Option<Rc<Value>> {
+        match unary {
+            Unary::Plus(fnc_call) => {
+                if let Some(val) = self.exec_fnc_call(fnc_call) {
+                    match val.as_ref() {
+                        Value::Bool(val) => Self::exec_expr_2_bool(false, *val, &OpCode2::Add),
+                        Value::List(val) => Self::exec_expr_2_list(&vec![], val, &OpCode2::Add),
+                        Value::Num(val) => Self::exec_expr_2_num(0.0, *val, &OpCode2::Add),
+                        Value::Str(val) => {
+                            Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Add)
+                        }
+                        Value::None => Some(Rc::new(Value::None)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Unary::Minus(fnc_call) => {
+                if let Some(val) = self.exec_fnc_call(fnc_call) {
+                    match val.as_ref() {
+                        Value::Bool(val) => Self::exec_expr_2_bool(false, *val, &OpCode2::Sub),
+                        Value::List(val) => Self::exec_expr_2_list(&vec![], val, &OpCode2::Sub),
+                        Value::Num(val) => Self::exec_expr_2_num(0.0, *val, &OpCode2::Sub),
+                        Value::Str(val) => {
+                            Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Sub)
+                        }
+                        Value::None => Some(Rc::new(Value::None)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Unary::FncCall(fnc_call) => self.exec_fnc_call(fnc_call),
         }
     }
 
@@ -507,6 +545,14 @@ mod tests {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"[1,2,3].(0-1)");
+        assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn unary_minus() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"[1,2,3].(-1)");
         assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
     }
 }

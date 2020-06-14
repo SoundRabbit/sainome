@@ -67,12 +67,19 @@ pub enum OpCode3 {
 #[derive(Debug, PartialEq)]
 pub enum Expr4 {
     Expr4(Box<Expr4>, Term, OpCode4),
-    FncCall(FncCall),
+    Unary(Unary),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum OpCode4 {
     Dice,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Unary {
+    Plus(FncCall),
+    Minus(FncCall),
+    FncCall(FncCall),
 }
 
 #[derive(Debug, PartialEq)]

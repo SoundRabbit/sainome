@@ -45,7 +45,13 @@ Expr3: Expr3 = {
 Expr4: Expr4 = {
     <l: Expr4> "d" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
     <l: Expr4> "D" <r: Term> => Expr4::Expr4(Box::new(l), r, OpCode4::Dice),
-    FncCall => Expr4::FncCall(<>),
+    Unary => Expr4::Unary(<>),
+}
+
+Unary: Unary = {
+    "+" <FncCall> => Unary::Plus(<>),
+    "-" <FncCall> => Unary::Minus(<>),
+    FncCall => Unary::FncCall(<>),
 }
 
 FncCall: FncCall = {
