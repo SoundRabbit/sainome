@@ -234,6 +234,19 @@ impl<'a> RunTime<'a> {
                         Value::Fnc(a, r) => {
                             self.call_fnc((Rc::clone(a), Rc::clone(r)), Rc::clone(&arg))
                         }
+                        Value::List(vs) => match arg.as_ref() {
+                            Value::Num(n) => {
+                                let n = n.floor();
+                                if n >= 0.0 {
+                                    let idx: usize = n as usize;
+                                    vs.get(idx).map(|i| Rc::clone(i))
+                                } else {
+                                    let idx: usize = vs.len() - (-n as usize);
+                                    vs.get(idx).map(|i| Rc::clone(i))
+                                }
+                            }
+                            _ => None,
+                        },
                         _ => None,
                     }
                 } else {
@@ -478,6 +491,22 @@ mod tests {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"(\\x.x+1).2");
+        assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn access_list_head() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"[1,2,3].2");
+        assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn access_list_tail() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec(r"[1,2,3].(0-1)");
         assert_eq!(result, Some(Rc::new(Value::Num(3.0))));
     }
 }
