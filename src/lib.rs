@@ -8,14 +8,14 @@ use ast::*;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-struct RunTime<'a> {
+pub struct RunTime<'a> {
     stack: Vec<HashMap<Rc<String>, Rc<Value>>>,
     parser: syntax::ExprParser,
     rand: Box<dyn FnMut(u32) -> u32 + 'a>,
 }
 
 #[derive(Debug, PartialEq)]
-enum Value {
+pub enum Value {
     None,
     Bool(bool),
     Str(Rc<String>),
