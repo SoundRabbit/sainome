@@ -275,13 +275,28 @@ impl<'a> RunTime<'a> {
                         Value::List(vs) => match arg.as_ref() {
                             Value::Num(n) => {
                                 let n = n.floor();
-                                if n >= 0.0 {
-                                    let idx: usize = n as usize;
-                                    vs.get(idx).map(|i| Rc::clone(i))
+                                let idx = if n >= 0.0 {
+                                    n as usize
                                 } else {
-                                    let idx: usize = vs.len() - (-n as usize);
-                                    vs.get(idx).map(|i| Rc::clone(i))
-                                }
+                                    vs.len() - (-n as usize)
+                                };
+                                vs.get(idx).map(|i| Rc::clone(i))
+                            }
+                            _ => None,
+                        },
+                        Value::Str(v) => match arg.as_ref() {
+                            Value::Num(n) => {
+                                let n = n.floor();
+                                let idx = if n >= 0.0 {
+                                    n as usize
+                                } else {
+                                    v.len() - (-n as usize)
+                                };
+                                v.as_str()
+                                    .chars()
+                                    .collect::<Vec<char>>()
+                                    .get(idx)
+                                    .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
                             }
                             _ => None,
                         },
@@ -570,7 +585,7 @@ mod tests {
     fn at() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = run_time.exec(r"1d6@2");
+        let result = run_time.exec(r"1d10@2>>map.\\x->x");
         assert_eq!(result, Some(Rc::new(Value::Num(6.0))));
     }
 }
