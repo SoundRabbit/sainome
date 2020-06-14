@@ -14,6 +14,7 @@ struct RunTime<'a> {
     rand: Box<dyn FnMut(u32) -> u32 + 'a>,
 }
 
+#[derive(Debug, PartialEq)]
 enum Value {
     None,
     Bool(bool),
@@ -365,11 +366,30 @@ impl<'a> RunTime<'a> {
                 let num = left.floor() as usize;
                 let a = right.floor() as u32;
                 let mut res = 0;
-                for i in 0..num {
-                    res += (self.rand)(a);
+                for _ in 0..num {
+                    res += (self.rand)(a) + 1;
                 }
                 Some(Rc::new(Value::Num(res as f64)))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::prelude::*;
+
+    #[test]
+    fn it_works() {
+        assert_eq!(4, 2 + 2);
+    }
+
+    #[test]
+    fn addition() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("1+1");
+        assert_eq!(result, Some(Rc::new(Value::Num(2.0))));
     }
 }
