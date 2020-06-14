@@ -90,8 +90,12 @@ SemicolonList<T>: Vec<T> = {
 }
 
 Literal: Literal = {
-    Num => Literal::Num(<>),
     Ident => Literal::Ident(Rc::new(<>)),
+    LiteralNum => <>
+}
+
+LiteralNum: Literal = {
+    Num => Literal::Num(<>),
 }
 
 Num: f64 = {
@@ -99,5 +103,5 @@ Num: f64 = {
 };
 
 Ident: String = {
-    r"[A-Za-z]+" => String::from(<>),
+    r"[A-Za-z][A-Za-z0-9]*" => String::from(<>),
 }
