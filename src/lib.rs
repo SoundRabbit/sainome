@@ -288,9 +288,7 @@ impl<'a> RunTime<'a> {
                     let fnc = fnc.as_ref();
                     match fnc {
                         Value::Fnc(a, r) => match self.exec_term(arg) {
-                            Some(arg) => {
-                                self.call_fnc((Rc::clone(a), Rc::clone(r)), Rc::clone(&arg))
-                            }
+                            Some(arg) => self.call_fnc((Rc::clone(a), Rc::clone(r)), arg),
                             None => None,
                         },
                         Value::List(vs) => match self.exec_term(arg) {
@@ -303,6 +301,17 @@ impl<'a> RunTime<'a> {
                                         vs.len() - (-n as usize)
                                     };
                                     vs.get(idx).map(|i| Rc::clone(i))
+                                }
+                                Value::Fnc(a, i) => {
+                                    let mut rs = vec![];
+                                    for v in vs {
+                                        if let Some(r) = self
+                                            .call_fnc((Rc::clone(a), Rc::clone(i)), Rc::clone(v))
+                                        {
+                                            rs.push(r);
+                                        }
+                                    }
+                                    Some(Rc::new(Value::List(rs)))
                                 }
                                 _ => None,
                             },
@@ -643,5 +652,14 @@ mod tests {
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"(f:=\\x.x+1; 2>>f)");
         assert_eq!(x, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn map_list() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"[1,1,1,1,1].(\\x.x+4)");
+        let y = run_time.exec(r"[5,5,5,5,5]");
+        assert_eq!(x, y);
     }
 }
