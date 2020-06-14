@@ -386,10 +386,34 @@ mod tests {
     }
 
     #[test]
-    fn addition() {
+    fn add_1_1() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("1+1");
         assert_eq!(result, Some(Rc::new(Value::Num(2.0))));
+    }
+
+    #[test]
+    fn sub_1_1() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("1-1");
+        assert_eq!(result, Some(Rc::new(Value::Num(0.0))));
+    }
+
+    #[test]
+    fn multi_2_3() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("2*3");
+        assert_eq!(result, Some(Rc::new(Value::Num(6.0))));
+    }
+
+    #[test]
+    fn div_3_2() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("3/2");
+        assert_eq!(result, Some(Rc::new(Value::Num(1.5))));
     }
 }
