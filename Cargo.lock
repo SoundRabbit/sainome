@@ -458,6 +458,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sainome"
+version = "0.1.0"
+dependencies = [
+ "lalrpop",
+ "lalrpop-util",
+ "rand",
+ "regex",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -534,16 +544,6 @@ dependencies = [
  "byteorder",
  "dirs",
  "winapi",
-]
-
-[[package]]
-name = "test_of_lalrpop"
-version = "0.1.0"
-dependencies = [
- "lalrpop",
- "lalrpop-util",
- "rand",
- "regex",
 ]
 
 [[package]]
