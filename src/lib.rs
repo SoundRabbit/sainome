@@ -858,4 +858,12 @@ mod tests {
         let y = run_time.exec(r"[5,4,3,2,1]");
         assert_eq!(x, y);
     }
+
+    #[test]
+    fn shadowing() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"(x:=0; x:=x+1; x:=x+1; x)");
+        assert_eq!(x, Some(ExecResult::Num(2.0)));
+    }
 }
