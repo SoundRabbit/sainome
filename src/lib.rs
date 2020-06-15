@@ -5,7 +5,6 @@ mod ast;
 lalrpop_mod!(syntax);
 
 use ast::*;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
