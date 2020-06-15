@@ -52,7 +52,28 @@ impl<'a> RunTime<'a> {
                 }
                 Some(Rc::new(Value::None))
             }
-            Expr::FncChain(fnc_chain) => self.exec_fnc_chain(fnc_chain, env),
+            Expr::Branch(branch) => self.exec_branch(branch, env),
+        }
+    }
+
+    fn exec_branch(&mut self, branch: &mut Branch, env: &mut Env) -> Option<Rc<Value>> {
+        match branch {
+            Branch::Branch(c, left, right) => {
+                if let Some(c) = self.exec_fnc_chain(c, env) {
+                    if let Value::Bool(c) = c.as_ref() {
+                        if *c {
+                            self.exec_branch(left, env)
+                        } else {
+                            self.exec_branch(right, env)
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Branch::FncChain(fnc_chain) => self.exec_fnc_chain(fnc_chain, env),
         }
     }
 
@@ -680,5 +701,29 @@ mod tests {
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"(a:=2; f:=\\x.a+x; a:=3; f.1)");
         assert_eq!(x, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn if_else_true() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"if(1+1==2)=>(3)else(4)");
+        assert_eq!(x, Some(Rc::new(Value::Num(3.0))));
+    }
+
+    #[test]
+    fn if_else_false() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"if(1+1!=2)=>(3)else(4)");
+        assert_eq!(x, Some(Rc::new(Value::Num(4.0))));
+    }
+
+    #[test]
+    fn if_if_else_else_true_true() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)");
+        assert_eq!(x, Some(Rc::new(Value::Num(1.0))));
     }
 }

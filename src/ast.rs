@@ -3,6 +3,12 @@ use std::rc::Rc;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Assign(Rc<String>, FncChain),
+    Branch(Branch),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Branch {
+    Branch(FncChain, Box<Branch>, Box<Branch>),
     FncChain(FncChain),
 }
 

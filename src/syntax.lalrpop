@@ -6,7 +6,12 @@ grammar;
 
 pub Expr: Expr = {
     <i: Ident> ":=" <f: FncChain> => Expr::Assign(Rc::new(i), f),
-    FncChain => Expr::FncChain(<>)
+    Branch => Expr::Branch(<>)
+}
+
+Branch: Branch = {
+    "if" <c: FncChain> "=>" <l: Branch> "else" <r: Branch> => Branch::Branch(c, Box::new(l), Box::new(r)),
+    FncChain => Branch::FncChain(<>)
 }
 
 FncChain: FncChain = {
