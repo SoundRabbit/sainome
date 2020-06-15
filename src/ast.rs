@@ -98,6 +98,13 @@ pub enum Unary {
 #[derive(Debug, PartialEq, Clone)]
 pub enum FncCall {
     FncCall(Box<FncCall>, Term),
+    Reducer(Reducer),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Reducer {
+    RLeft(Term, Term),
+    RRight(Term, Term),
     Term(Term),
 }
 

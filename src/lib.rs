@@ -19,8 +19,10 @@ enum Value {
     Bool(bool),
     Str(Rc<String>),
     Num(f64),
-    List(Vec<Rc<Value>>),
+    List(Rc<Vec<Rc<Value>>>),
     Fnc(Rc<String>, Rc<FncDef>, Env),
+    RLeft(Rc<Value>, Rc<Vec<Rc<Value>>>),
+    RRight(Rc<Value>, Rc<Vec<Rc<Value>>>),
 }
 
 type Env = HashMap<Rc<String>, Rc<Value>>;
@@ -93,12 +95,7 @@ impl<'a> RunTime<'a> {
                 let left = self.exec_fnc_chain(left, env);
                 let right = self.exec_fnc_def(right, env);
                 if let (Some(left), Some(right)) = (left, right) {
-                    match right.as_ref() {
-                        Value::Fnc(a, i, e) => {
-                            self.call_fnc((Rc::clone(a), i, &mut e.clone()), left)
-                        }
-                        _ => Some(Rc::new(Value::None)),
-                    }
+                    self.call_like_fnc_with_value(&right, left, env)
                 } else {
                     None
                 }
@@ -149,7 +146,7 @@ impl<'a> RunTime<'a> {
                                         return None;
                                     }
                                 }
-                                Some(Rc::new(Value::List(value)))
+                                Some(Rc::new(Value::List(Rc::new(value))))
                             }
                             Value::Num(n) => {
                                 let mut value = vec![];
@@ -170,7 +167,7 @@ impl<'a> RunTime<'a> {
                                         return None;
                                     }
                                 }
-                                Some(Rc::new(Value::List(value)))
+                                Some(Rc::new(Value::List(Rc::new(value))))
                             }
                             _ => None,
                         },
@@ -319,76 +316,42 @@ impl<'a> RunTime<'a> {
                 let fnc = self.exec_fnc_call(fnc_call, env);
                 if let Some(fnc) = fnc {
                     let fnc = fnc.as_ref();
-                    match fnc {
-                        Value::Fnc(a, i, e) => match self.exec_term(arg, env) {
-                            Some(arg) => self.call_fnc((Rc::clone(a), i, &mut e.clone()), arg),
-                            None => None,
-                        },
-                        Value::List(vs) => match self.exec_term(arg, env) {
-                            Some(arg) => match arg.as_ref() {
-                                Value::Num(n) => {
-                                    let n = n.floor();
-                                    let idx = if n >= 0.0 {
-                                        n as usize
-                                    } else {
-                                        vs.len() - (-n as usize)
-                                    };
-                                    vs.get(idx).map(|i| Rc::clone(i))
-                                }
-                                Value::Fnc(a, i, e) => {
-                                    let mut rs = vec![];
-                                    for v in vs {
-                                        if let Some(r) = self.call_fnc(
-                                            (Rc::clone(a), i, &mut e.clone()),
-                                            Rc::clone(v),
-                                        ) {
-                                            rs.push(r);
-                                        }
-                                    }
-                                    Some(Rc::new(Value::List(rs)))
-                                }
-                                _ => None,
-                            },
-                            None => None,
-                        },
-                        Value::Str(v) => match self.exec_term(arg, env) {
-                            Some(arg) => match arg.as_ref() {
-                                Value::Num(n) => {
-                                    let n = n.floor();
-                                    let idx = if n >= 0.0 {
-                                        n as usize
-                                    } else {
-                                        v.len() - (-n as usize)
-                                    };
-                                    v.as_str()
-                                        .chars()
-                                        .collect::<Vec<char>>()
-                                        .get(idx)
-                                        .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
-                                }
-                                _ => None,
-                            },
-                            None => None,
-                        },
-                        Value::Num(v) => {
-                            let n = v.floor() as usize;
-                            let mut res = vec![];
-                            for _ in 0..n {
-                                if let Some(v) = self.exec_term(arg, env) {
-                                    res.push(v);
-                                } else {
-                                    return None;
-                                }
-                            }
-                            Some(Rc::new(Value::List(res)))
-                        }
-                        _ => None,
+                    self.call_like_fnc_with_term(fnc, arg, env)
+                } else {
+                    None
+                }
+            }
+            FncCall::Reducer(reducer) => self.exec_reducer(reducer, env),
+        }
+    }
+
+    fn exec_reducer(&mut self, reducer: &mut Reducer, env: &mut Env) -> Option<Rc<Value>> {
+        match reducer {
+            Reducer::RLeft(i, lst) => {
+                let i = self.exec_term(i, env);
+                let lst = self.exec_term(lst, env);
+                if let (Some(i), Some(lst)) = (i, lst) {
+                    match lst.as_ref() {
+                        Value::List(lst) => Some(Rc::new(Value::RLeft(i, Rc::clone(lst)))),
+                        _ => Some(Rc::new(Value::RLeft(i, Rc::new(vec![lst])))),
                     }
                 } else {
                     None
                 }
             }
-            FncCall::Term(term) => self.exec_term(term, env),
+            Reducer::RRight(lst, i) => {
+                let i = self.exec_term(i, env);
+                let lst = self.exec_term(lst, env);
+                if let (Some(i), Some(lst)) = (i, lst) {
+                    match lst.as_ref() {
+                        Value::List(lst) => Some(Rc::new(Value::RRight(i, Rc::clone(lst)))),
+                        _ => Some(Rc::new(Value::RRight(i, Rc::new(vec![lst])))),
+                    }
+                } else {
+                    None
+                }
+            }
+            Reducer::Term(term) => self.exec_term(term, env),
         }
     }
 
@@ -404,7 +367,7 @@ impl<'a> RunTime<'a> {
                         return None;
                     }
                 }
-                Some(Rc::new(Value::List(values)))
+                Some(Rc::new(Value::List(Rc::new(values))))
             }
             Term::Expr(exprs) => {
                 let mut res = None;
@@ -430,6 +393,126 @@ impl<'a> RunTime<'a> {
             Literal::Num(num) => Some(Rc::new(Value::Num(*num))),
             Literal::Str(str) => Some(Rc::new(Value::Str(Rc::clone(str)))),
             _ => Some(Rc::new(Value::None)),
+        }
+    }
+
+    fn call_like_fnc_with_term(
+        &mut self,
+        fnc: &Value,
+        arg: &mut Term,
+        env: &mut Env,
+    ) -> Option<Rc<Value>> {
+        match fnc {
+            Value::List(..)
+            | Value::Str(..)
+            | Value::RLeft(..)
+            | Value::RRight(..)
+            | Value::Fnc(..) => match self.exec_term(arg, env) {
+                Some(arg) => self.call_like_fnc_with_value(&fnc, arg, env),
+                None => None,
+            },
+            Value::Num(v) => {
+                let n = v.floor() as usize;
+                let mut res = vec![];
+                for _ in 0..n {
+                    if let Some(v) = self.exec_term(arg, env) {
+                        res.push(v);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(Rc::new(Value::List(Rc::new(res))))
+            }
+            _ => None,
+        }
+    }
+
+    fn call_like_fnc_with_value(
+        &mut self,
+        fnc: &Value,
+        arg: Rc<Value>,
+        env: &mut Env,
+    ) -> Option<Rc<Value>> {
+        match fnc {
+            Value::Fnc(a, i, e) => self.call_fnc((Rc::clone(a), i, &mut e.clone()), arg),
+            Value::List(vs) => match arg.as_ref() {
+                Value::Num(n) => {
+                    let n = n.floor();
+                    let idx = if n >= 0.0 {
+                        n as usize
+                    } else {
+                        vs.len() - (-n as usize)
+                    };
+                    vs.get(idx).map(|i| Rc::clone(i))
+                }
+                Value::Fnc(a, i, e) => {
+                    let mut rs = vec![];
+                    for v in vs.as_ref() {
+                        if let Some(r) =
+                            self.call_fnc((Rc::clone(a), i, &mut e.clone()), Rc::clone(v))
+                        {
+                            rs.push(r);
+                        }
+                    }
+                    Some(Rc::new(Value::List(Rc::new(rs))))
+                }
+                _ => None,
+            },
+            Value::Str(v) => match arg.as_ref() {
+                Value::Num(n) => {
+                    let n = n.floor();
+                    let idx = if n >= 0.0 {
+                        n as usize
+                    } else {
+                        v.len() - (-n as usize)
+                    };
+                    v.as_str()
+                        .chars()
+                        .collect::<Vec<char>>()
+                        .get(idx)
+                        .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
+                }
+                _ => None,
+            },
+            Value::Num(v) => {
+                let n = v.floor() as usize;
+                let mut res = vec![];
+                for _ in 0..n {
+                    res.push(Rc::clone(&arg));
+                }
+                Some(Rc::new(Value::List(Rc::new(res))))
+            }
+            Value::RLeft(i, lst) => {
+                let mut pre = Rc::clone(i);
+                for x in lst.iter() {
+                    if let Some(f) = self.call_like_fnc_with_value(&arg, Rc::clone(&pre), env) {
+                        if let Some(p) = self.call_like_fnc_with_value(&f, Rc::clone(x), env) {
+                            pre = p;
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                Some(pre)
+            }
+            Value::RRight(i, lst) => {
+                let mut pre = Rc::clone(i);
+                for x in lst.iter().rev() {
+                    if let Some(f) = self.call_like_fnc_with_value(&arg, Rc::clone(&pre), env) {
+                        if let Some(p) = self.call_like_fnc_with_value(&f, Rc::clone(x), env) {
+                            pre = p;
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                Some(pre)
+            }
+            _ => None,
         }
     }
 
@@ -511,7 +594,7 @@ impl<'a> RunTime<'a> {
                 for i in right {
                     res.push(Rc::clone(i));
                 }
-                res
+                Rc::new(res)
             }))),
             OpCode2::Sub => None,
         }
@@ -541,7 +624,7 @@ impl<'a> RunTime<'a> {
                 for _ in 0..num {
                     res.push(Rc::new(Value::Num(self.exec_dice(1.0, right))));
                 }
-                Some(Rc::new(Value::List(res)))
+                Some(Rc::new(Value::List(Rc::new(res))))
             }
         }
     }
@@ -749,5 +832,30 @@ mod tests {
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)");
         assert_eq!(x, Some(ExecResult::Num(1.0)));
+    }
+
+    #[test]
+    fn reduce_left() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"0#>[1,2,3,4,5].(\\p.\\c.p+c)");
+        assert_eq!(x, Some(ExecResult::Num(15.0)));
+    }
+
+    #[test]
+    fn reduce_right() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"[1,2,3,4,5]<#1.(\\p.\\c.p*c)");
+        assert_eq!(x, Some(ExecResult::Num(120.0)));
+    }
+
+    #[test]
+    fn reverse() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = run_time.exec(r"[1,2,3,4,5]<#[].(\\p.\\c.p+[c])");
+        let y = run_time.exec(r"[5,4,3,2,1]");
+        assert_eq!(x, y);
     }
 }
