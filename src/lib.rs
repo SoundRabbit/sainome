@@ -1,15 +1,13 @@
-#[macro_use]
-extern crate lalrpop_util;
+extern crate peg;
 
 mod ast;
-lalrpop_mod!(syntax);
+mod parser;
 
 use ast::*;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct RunTime<'a> {
-    parser: syntax::ExprParser,
     rand: Box<dyn FnMut(u32) -> u32 + 'a>,
 }
 
@@ -39,13 +37,12 @@ pub enum ExecResult {
 impl<'a> RunTime<'a> {
     pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         Self {
-            parser: syntax::ExprParser::new(),
             rand: Box::new(rand),
         }
     }
 
     pub fn exec(&mut self, code: &str) -> Option<ExecResult> {
-        let mut ast = self.parser.parse(code).ok();
+        let mut ast = parser::parse::expr(code).ok();
         let value = if let Some(expr) = &mut ast {
             self.exec_expr(expr, &mut HashMap::new())
                 .map(|x| ExecResult::from(x.as_ref()))
@@ -58,7 +55,7 @@ impl<'a> RunTime<'a> {
     fn exec_expr(&mut self, expr: &mut Expr, env: &mut Env) -> Option<Rc<Value>> {
         match expr {
             Expr::Assign(ident, fnc_chain) => {
-                let value = self.exec_fnc_chain(fnc_chain, env);
+                let value = self.exec_branch(fnc_chain, env);
                 if let Some(value) = value {
                     env.insert(Rc::clone(ident), Rc::clone(&value));
                 }
@@ -93,7 +90,7 @@ impl<'a> RunTime<'a> {
         match fnc_chain {
             FncChain::FncChain(left, right) => {
                 let left = self.exec_fnc_chain(left, env);
-                let right = self.exec_fnc_def(right, env);
+                let right = self.exec_fnc_chain(right, env);
                 if let (Some(left), Some(right)) = (left, right) {
                     self.call_like_fnc_with_value(&right, left, env)
                 } else {
@@ -118,7 +115,7 @@ impl<'a> RunTime<'a> {
     fn exec_expr_0(&mut self, expr_0: &mut Expr0, env: &mut Env) -> Option<Rc<Value>> {
         match expr_0 {
             Expr0::Expr0(left, right, op_code) => {
-                let right = self.exec_expr_1(right, env);
+                let right = self.exec_expr_0(right, env);
                 if let Some(right) = right {
                     match op_code {
                         OpCode0::At => match right.as_ref() {
@@ -184,7 +181,7 @@ impl<'a> RunTime<'a> {
         match expr_1 {
             Expr1::Expr1(left, right, op_code) => {
                 let left = self.exec_expr_1(left, env);
-                let right = self.exec_expr_2(right, env);
+                let right = self.exec_expr_1(right, env);
                 if let (Some(left), Some(right)) = (left, right) {
                     let (left, right) = (left.as_ref(), right.as_ref());
                     if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
@@ -208,7 +205,7 @@ impl<'a> RunTime<'a> {
         match expr_2 {
             Expr2::Expr2(left, right, op_code) => {
                 let left = self.exec_expr_2(left, env);
-                let right = self.exec_expr_3(right, env);
+                let right = self.exec_expr_2(right, env);
                 if let (Some(left), Some(right)) = (left, right) {
                     let (left, right) = (left.as_ref(), right.as_ref());
                     if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
@@ -234,7 +231,7 @@ impl<'a> RunTime<'a> {
         match expr_3 {
             Expr3::Expr3(left, right, op_code) => {
                 let left = self.exec_expr_3(left, env);
-                let right = self.exec_expr_4(right, env);
+                let right = self.exec_expr_3(right, env);
                 if let (Some(left), Some(right)) = (&left, &right) {
                     let (left, right) = (left.as_ref(), right.as_ref());
                     if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
@@ -256,7 +253,7 @@ impl<'a> RunTime<'a> {
         match expr_4 {
             Expr4::Expr4(left, right, op_code) => {
                 let left = self.exec_expr_4(left, env);
-                let right = self.exec_term(right, env);
+                let right = self.exec_expr_4(right, env);
                 if let (Some(left), Some(right)) = (left, right) {
                     let (left, right) = (left.as_ref(), right.as_ref());
                     if let (Value::Num(left), Value::Num(right)) = (left, right) {
@@ -328,8 +325,8 @@ impl<'a> RunTime<'a> {
     fn exec_reducer(&mut self, reducer: &mut Reducer, env: &mut Env) -> Option<Rc<Value>> {
         match reducer {
             Reducer::RLeft(i, lst) => {
-                let i = self.exec_term(i, env);
-                let lst = self.exec_term(lst, env);
+                let i = self.exec_reducer(i, env);
+                let lst = self.exec_reducer(lst, env);
                 if let (Some(i), Some(lst)) = (i, lst) {
                     match lst.as_ref() {
                         Value::List(lst) => Some(Rc::new(Value::RLeft(i, Rc::clone(lst)))),
@@ -340,8 +337,8 @@ impl<'a> RunTime<'a> {
                 }
             }
             Reducer::RRight(lst, i) => {
-                let i = self.exec_term(i, env);
-                let lst = self.exec_term(lst, env);
+                let i = self.exec_reducer(i, env);
+                let lst = self.exec_reducer(lst, env);
                 if let (Some(i), Some(lst)) = (i, lst) {
                     match lst.as_ref() {
                         Value::List(lst) => Some(Rc::new(Value::RRight(i, Rc::clone(lst)))),
@@ -399,7 +396,7 @@ impl<'a> RunTime<'a> {
     fn call_like_fnc_with_term(
         &mut self,
         fnc: &Value,
-        arg: &mut Term,
+        arg: &mut FncCall,
         env: &mut Env,
     ) -> Option<Rc<Value>> {
         match fnc {
@@ -407,7 +404,7 @@ impl<'a> RunTime<'a> {
             | Value::Str(..)
             | Value::RLeft(..)
             | Value::RRight(..)
-            | Value::Fnc(..) => match self.exec_term(arg, env) {
+            | Value::Fnc(..) => match self.exec_fnc_call(arg, env) {
                 Some(arg) => self.call_like_fnc_with_value(&fnc, arg, env),
                 None => None,
             },
@@ -415,7 +412,7 @@ impl<'a> RunTime<'a> {
                 let n = v.floor() as usize;
                 let mut res = vec![];
                 for _ in 0..n {
-                    if let Some(v) = self.exec_term(arg, env) {
+                    if let Some(v) = self.exec_fnc_call(arg, env) {
                         res.push(v);
                     } else {
                         return None;
@@ -617,8 +614,8 @@ impl<'a> RunTime<'a> {
 
     fn exec_expr_4_num(&mut self, left: f64, right: f64, op_code: &OpCode4) -> Option<Rc<Value>> {
         match op_code {
-            OpCode4::Dice => Some(Rc::new(Value::Num(self.exec_dice(left, right) as f64))),
-            OpCode4::Bice => {
+            OpCode4::SDice => Some(Rc::new(Value::Num(self.exec_dice(left, right) as f64))),
+            OpCode4::LDice => {
                 let mut res = vec![];
                 let num = left.floor() as usize;
                 for _ in 0..num {
@@ -662,6 +659,14 @@ mod tests {
     #[test]
     fn it_works() {
         assert_eq!(4, 2 + 2);
+    }
+
+    #[test]
+    fn num() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let result = run_time.exec("2.0");
+        assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
 
     #[test]

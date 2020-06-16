@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Assign(Rc<String>, FncChain),
+    Assign(Rc<String>, Branch),
     Branch(Branch),
 }
 
@@ -14,7 +14,7 @@ pub enum Branch {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FncChain {
-    FncChain(Box<FncChain>, FncDef),
+    FncChain(Box<FncChain>, Box<FncChain>),
     FncDef(FncDef),
 }
 
@@ -26,7 +26,7 @@ pub enum FncDef {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr0 {
-    Expr0(Box<Expr0>, Expr1, OpCode0),
+    Expr0(Box<Expr0>, Box<Expr0>, OpCode0),
     Expr1(Expr1),
 }
 
@@ -37,7 +37,7 @@ pub enum OpCode0 {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr1 {
-    Expr1(Box<Expr1>, Expr2, OpCode1),
+    Expr1(Box<Expr1>, Box<Expr1>, OpCode1),
     Expr2(Expr2),
 }
 
@@ -53,7 +53,7 @@ pub enum OpCode1 {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr2 {
-    Expr2(Box<Expr2>, Expr3, OpCode2),
+    Expr2(Box<Expr2>, Box<Expr2>, OpCode2),
     Expr3(Expr3),
 }
 
@@ -65,7 +65,7 @@ pub enum OpCode2 {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr3 {
-    Expr3(Box<Expr3>, Expr4, OpCode3),
+    Expr3(Box<Expr3>, Box<Expr3>, OpCode3),
     Expr4(Expr4),
 }
 
@@ -78,14 +78,14 @@ pub enum OpCode3 {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr4 {
-    Expr4(Box<Expr4>, Term, OpCode4),
+    Expr4(Box<Expr4>, Box<Expr4>, OpCode4),
     Unary(Unary),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum OpCode4 {
-    Dice,
-    Bice,
+    SDice,
+    LDice,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -97,14 +97,14 @@ pub enum Unary {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FncCall {
-    FncCall(Box<FncCall>, Term),
+    FncCall(Box<FncCall>, Box<FncCall>),
     Reducer(Reducer),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Reducer {
-    RLeft(Term, Term),
-    RRight(Term, Term),
+    RLeft(Box<Reducer>, Box<Reducer>),
+    RRight(Box<Reducer>, Box<Reducer>),
     Term(Term),
 }
 

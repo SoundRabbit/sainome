@@ -3,7 +3,6 @@ name = "sainome"
 version = "0.1.0"
 authors = ["SoundRabbit <soundrabbitstd@gmail.com>"]
 edition = "2018"
-build = "build.rs"
 description = "A generic dice bot for RPG"
 license = "MIT OR Apache-2.0"
 
@@ -13,11 +12,8 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-lalrpop-util = "0.19.0"
+peg = "0.6.2"
 regex = "1"
 
 [dev-dependencies]
 rand = "0.7.3"
-
-[build-dependencies]
-lalrpop = {version = "0.19.0", features = ["lexer"]}
