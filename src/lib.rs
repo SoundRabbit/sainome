@@ -32,6 +32,7 @@ pub enum ExecResult {
     Str(Rc<String>),
     Num(f64),
     List(Vec<ExecResult>),
+    Err(String),
 }
 
 impl<'a> RunTime<'a> {
@@ -42,12 +43,12 @@ impl<'a> RunTime<'a> {
     }
 
     pub fn exec(&mut self, code: &str) -> Option<ExecResult> {
-        let mut ast = parser::parse::expr(code).ok();
-        let value = if let Some(expr) = &mut ast {
-            self.exec_expr(expr, &mut HashMap::new())
-                .map(|x| ExecResult::from(x.as_ref()))
-        } else {
-            None
+        let mut ast = parser::parse::expr(code);
+        let value = match &mut ast {
+            Ok(expr) => self
+                .exec_expr(expr, &mut HashMap::new())
+                .map(|x| ExecResult::from(x.as_ref())),
+            Err(x) => Some(ExecResult::Err(x.to_string())),
         };
         value
     }
@@ -713,7 +714,7 @@ mod tests {
     fn use_sequence() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = run_time.exec("3*(1+2; 2+3; 3+4)");
+        let result = run_time.exec("3*(1+2;2+3;3+4)");
         assert_eq!(result, Some(ExecResult::Num(21.0)));
     }
 
@@ -729,7 +730,7 @@ mod tests {
     fn use_function_from_ident() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = run_time.exec(r"(f:=\\x.x+1; f.2)");
+        let result = run_time.exec(r"(f:=\\x.x+1;f.2)");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -770,7 +771,13 @@ mod tests {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"5.(5)");
-        let y = run_time.exec(r"[5,5,5,5,5]");
+        let y = Some(ExecResult::List(vec![
+            ExecResult::Num(5.0),
+            ExecResult::Num(5.0),
+            ExecResult::Num(5.0),
+            ExecResult::Num(5.0),
+            ExecResult::Num(5.0),
+        ]));
         assert_eq!(x, y);
     }
 
@@ -786,7 +793,7 @@ mod tests {
     fn fnc_chain_with_ident() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = run_time.exec(r"(f:=\\x.x+1; 2>>f)");
+        let x = run_time.exec(r"(f:=\\x.x+1;2>>f)");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -811,7 +818,7 @@ mod tests {
     fn capture_env() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = run_time.exec(r"(a:=2; f:=\\x.a+x; a:=3; f.1)");
+        let x = run_time.exec(r"(a:=2;f:=\\x.a+x;a:=3;f.1)");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -868,7 +875,7 @@ mod tests {
     fn shadowing() {
         let mut rng = rand::thread_rng();
         let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = run_time.exec(r"(x:=0; x:=x+1; x:=x+1; x)");
+        let x = run_time.exec(r"(x:=0;x:=x+1;x:=x+1;x)");
         assert_eq!(x, Some(ExecResult::Num(2.0)));
     }
 }

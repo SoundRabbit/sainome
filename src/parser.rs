@@ -92,7 +92,7 @@ peg::parser! {
         }
 
         pub rule fnc_def() -> FncDef = precedence! {
-            "\\" x:ident() "." y:fnc_def() { FncDef::FncDef(Rc::new(x), Rc::new(y)) }
+            "\\\\" x:ident() "." y:fnc_def() { FncDef::FncDef(Rc::new(x), Rc::new(y)) }
             --
             x:expr_0() { FncDef::Expr0(x) }
         }
