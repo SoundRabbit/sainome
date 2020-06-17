@@ -14,7 +14,6 @@ pub struct RunTime<'a> {
 }
 
 pub enum Value<'a> {
-    None,
     Bool(bool),
     Str(Rc<String>),
     Num(f64),
@@ -28,11 +27,11 @@ type Env<'a> = HashMap<Rc<String>, Rc<Value<'a>>>;
 
 #[derive(Debug, PartialEq)]
 pub enum ExecResult {
-    None,
     Bool(bool),
     Str(Rc<String>),
     Num(f64),
     List(Vec<ExecResult>),
+    Fnc,
     Err(String),
 }
 
@@ -66,8 +65,10 @@ impl<'a> RunTime<'a> {
                 let value = self.exec_branch(fnc_chain, env);
                 if let Some(value) = value {
                     env.insert(Rc::clone(ident), Rc::clone(&value));
+                    Some(value)
+                } else {
+                    None
                 }
-                Some(Rc::new(Value::None))
             }
             Expr::Branch(branch) => self.exec_branch(branch, env),
         }
@@ -296,7 +297,6 @@ impl<'a> RunTime<'a> {
                         Value::Str(val) => {
                             Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Add)
                         }
-                        Value::None => Some(Rc::new(Value::None)),
                         _ => None,
                     }
                 } else {
@@ -312,7 +312,6 @@ impl<'a> RunTime<'a> {
                         Value::Str(val) => {
                             Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Sub)
                         }
-                        Value::None => Some(Rc::new(Value::None)),
                         _ => None,
                     }
                 } else {
@@ -400,12 +399,12 @@ impl<'a> RunTime<'a> {
                 if let Some(value) = env.get(&ident) {
                     Some(Rc::clone(value))
                 } else {
-                    Some(Rc::new(Value::None))
+                    None
                 }
             }
             Literal::Num(num) => Some(Rc::new(Value::Num(*num))),
             Literal::Str(str) => Some(Rc::new(Value::Str(Rc::clone(str)))),
-            _ => Some(Rc::new(Value::None)),
+            _ => None,
         }
     }
 
@@ -663,7 +662,7 @@ impl ExecResult {
             Value::List(xs) => {
                 Self::List(xs.iter().map(|x| ExecResult::from(x.as_ref())).collect())
             }
-            _ => Self::None,
+            Value::Fnc(..) | Value::RLeft(..) | Value::RRight(..) => Self::Fnc,
         }
     }
 }
