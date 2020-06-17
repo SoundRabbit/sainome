@@ -667,6 +667,25 @@ impl ExecResult {
     }
 }
 
+impl Display for ExecResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExecResult::Bool(x) => write!(f, "{}", x),
+            ExecResult::Err(x) => write!(f, "Err:{}", x),
+            ExecResult::Fnc => write!(f, "Fnction"),
+            ExecResult::List(xs) => {
+                let mut fmt = vec![];
+                for x in xs {
+                    fmt.push(format!("{}", x));
+                }
+                write!(f, "[{}]", fmt.join(", "))
+            }
+            ExecResult::Num(x) => write!(f, "{}", x),
+            ExecResult::Str(x) => write!(f, "\"{}\"", x),
+        }
+    }
+}
+
 impl<'a> ExecEnv<'a> {
     pub fn new() -> Self {
         let mut me = Self {
@@ -697,8 +716,7 @@ impl<'a> ExecEnv<'a> {
     fn set_log(&mut self) {
         let log = Rc::clone(&self.log);
         self.set_function("log", move |val| {
-            log.borrow_mut()
-                .push(format!("{:?}", ExecResult::from(&val)));
+            log.borrow_mut().push(format!("{}", ExecResult::from(&val)));
             Some(val)
         });
     }
@@ -980,7 +998,7 @@ mod tests {
         let ex_env = ExecEnv::new();
         let x = run_time.exec(r"[0.0,1.0,2.0]>>log>>log", &ex_env);
         if let Some(x) = x {
-            assert_eq!(ex_env.log(), vec![format!("{:?}", x), format!("{:?}", x)]);
+            assert_eq!(ex_env.log(), vec![format!("{}", x), format!("{}", x)]);
         } else {
             unreachable!();
         }
