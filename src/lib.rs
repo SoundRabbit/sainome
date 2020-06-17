@@ -9,10 +9,6 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::rc::Rc;
 
-pub struct RunTime<'a> {
-    rand: RefCell<Box<dyn FnMut(u32) -> u32 + 'a>>,
-}
-
 pub enum Value<'a> {
     Bool(bool),
     Str(Rc<String>),
@@ -35,622 +31,597 @@ pub enum ExecResult {
     Err(String),
 }
 
-pub struct ExecEnv<'a> {
+pub struct RunTime<'a> {
     env: Env<'a>,
     log: Rc<RefCell<Vec<String>>>,
+    rand: Rc<RefCell<dyn FnMut(u32) -> u32 + 'a>>,
 }
 
-impl<'a> RunTime<'a> {
-    pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
-        Self {
-            rand: RefCell::new(Box::new(rand)),
+pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> Option<ExecResult> {
+    let ast = parser::parse::expr(code);
+    let value = match &ast {
+        Ok(expr) => {
+            let res = exec_expr(expr, &mut run_time.clone());
+            res.map(|x| ExecResult::from(x.as_ref()))
         }
-    }
+        Err(x) => Some(ExecResult::Err(x.to_string())),
+    };
+    value
+}
 
-    pub fn exec<'b>(&'b self, code: &str, env: &ExecEnv<'b>) -> Option<ExecResult> {
-        let ast = parser::parse::expr(code);
-        let value = match &ast {
-            Ok(expr) => {
-                let res = self.exec_expr(expr, &mut env.env.clone());
-                res.map(|x| ExecResult::from(x.as_ref()))
+fn exec_expr<'a>(expr: &Expr, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
+    match expr {
+        Expr::Assign(ident, fnc_chain) => {
+            let value = exec_branch(fnc_chain, run_time);
+            if let Some(value) = value {
+                run_time.env.insert(Rc::clone(ident), Rc::clone(&value));
+                Some(value)
+            } else {
+                None
             }
-            Err(x) => Some(ExecResult::Err(x.to_string())),
-        };
-        value
-    }
-
-    fn exec_expr<'b>(&'b self, expr: &Expr, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr {
-            Expr::Assign(ident, fnc_chain) => {
-                let value = self.exec_branch(fnc_chain, env);
-                if let Some(value) = value {
-                    env.insert(Rc::clone(ident), Rc::clone(&value));
-                    Some(value)
-                } else {
-                    None
-                }
-            }
-            Expr::Branch(branch) => self.exec_branch(branch, env),
         }
+        Expr::Branch(branch) => exec_branch(branch, run_time),
     }
+}
 
-    fn exec_branch<'b>(&'b self, branch: &Branch, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match branch {
-            Branch::Branch(c, left, right) => {
-                if let Some(c) = self.exec_fnc_chain(c, env) {
-                    if let Value::Bool(c) = c.as_ref() {
-                        if *c {
-                            self.exec_branch(left, env)
-                        } else {
-                            self.exec_branch(right, env)
-                        }
+fn exec_branch<'a>(branch: &Branch, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
+    match branch {
+        Branch::Branch(c, left, right) => {
+            if let Some(c) = exec_fnc_chain(c, run_time) {
+                if let Value::Bool(c) = c.as_ref() {
+                    if *c {
+                        exec_branch(left, run_time)
                     } else {
-                        None
+                        exec_branch(right, run_time)
                     }
                 } else {
                     None
                 }
+            } else {
+                None
             }
-            Branch::FncChain(fnc_chain) => self.exec_fnc_chain(fnc_chain, env),
         }
+        Branch::FncChain(fnc_chain) => exec_fnc_chain(fnc_chain, run_time),
     }
+}
 
-    fn exec_fnc_chain<'b>(
-        &'b self,
-        fnc_chain: &FncChain,
-        env: &mut Env<'b>,
-    ) -> Option<Rc<Value<'b>>> {
-        match fnc_chain {
-            FncChain::FncChain(left, right) => {
-                let left = self.exec_fnc_chain(left, env);
-                let right = self.exec_fnc_chain(right, env);
-                if let (Some(left), Some(right)) = (left, right) {
-                    self.call_like_fnc_with_value(&right, left, env)
-                } else {
-                    None
-                }
+fn exec_fnc_chain<'b>(fnc_chain: &FncChain, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match fnc_chain {
+        FncChain::FncChain(left, right) => {
+            let left = exec_fnc_chain(left, run_time);
+            let right = exec_fnc_chain(right, run_time);
+            if let (Some(left), Some(right)) = (left, right) {
+                call_like_fnc_with_value(&right, left, run_time)
+            } else {
+                None
             }
-            FncChain::FncDef(fnc_def) => self.exec_fnc_def(fnc_def, env),
         }
+        FncChain::FncDef(fnc_def) => exec_fnc_def(fnc_def, run_time),
     }
+}
 
-    fn exec_fnc_def<'b>(&'b self, fnc_def: &FncDef, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match fnc_def {
-            FncDef::FncDef(arg, right) => {
-                let arg = Rc::clone(arg);
-                let right = Rc::clone(right);
-                let env = env.clone();
-                Some(Rc::new(Value::Fnc(Box::new(
-                    move |argv| -> Option<Rc<Value<'b>>> {
-                        let mut env = env.clone();
-                        env.insert(Rc::clone(&arg), argv);
-                        self.exec_fnc_def(&Rc::clone(&right), &mut env)
-                    },
-                ))))
-            }
-            FncDef::Expr0(expr_0) => self.exec_expr_0(expr_0, env),
+fn exec_fnc_def<'b>(fnc_def: &FncDef, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match fnc_def {
+        FncDef::FncDef(arg, right) => {
+            let arg = Rc::clone(arg);
+            let right = Rc::clone(right);
+            let run_time = run_time.clone();
+            Some(Rc::new(Value::Fnc(Box::new(
+                move |argv| -> Option<Rc<Value<'b>>> {
+                    let mut run_time = run_time.clone();
+                    run_time.env.insert(Rc::clone(&arg), argv);
+                    exec_fnc_def(&Rc::clone(&right), &mut run_time)
+                },
+            ))))
         }
+        FncDef::Expr0(expr_0) => exec_expr_0(expr_0, run_time),
     }
+}
 
-    fn exec_expr_0<'b>(&'b self, expr_0: &Expr0, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr_0 {
-            Expr0::Expr0(left, right, op_code) => {
-                let right = self.exec_expr_0(right, env);
-                if let Some(right) = right {
-                    match op_code {
-                        OpCode0::At => match right.as_ref() {
-                            Value::Fnc(fnc) => {
-                                let mut value = vec![];
-                                loop {
-                                    let left = self.exec_expr_0(left, env);
-                                    let f = left
-                                        .and_then(|left| {
-                                            value.push(Rc::clone(&left));
-                                            fnc(Rc::clone(&left))
-                                        })
-                                        .and_then(|f| match f.as_ref() {
-                                            Value::Bool(f) => Some(*f),
-                                            _ => None,
-                                        });
-                                    if let Some(f) = f {
-                                        if !f {
-                                            break;
-                                        }
-                                    } else {
-                                        return None;
-                                    }
-                                }
-                                Some(Rc::new(Value::List(Rc::new(value))))
-                            }
-                            Value::Num(n) => {
-                                let mut value = vec![];
-                                loop {
-                                    let left = self.exec_expr_0(left, env);
-                                    let f = left.and_then(|left| {
+fn exec_expr_0<'b>(expr_0: &Expr0, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match expr_0 {
+        Expr0::Expr0(left, right, op_code) => {
+            let right = exec_expr_0(right, run_time);
+            if let Some(right) = right {
+                match op_code {
+                    OpCode0::At => match right.as_ref() {
+                        Value::Fnc(fnc) => {
+                            let mut value = vec![];
+                            loop {
+                                let left = exec_expr_0(left, run_time);
+                                let f = left
+                                    .and_then(|left| {
                                         value.push(Rc::clone(&left));
-                                        match left.as_ref() {
-                                            Value::Num(m) => Some(*m >= *n),
-                                            _ => None,
-                                        }
+                                        fnc(Rc::clone(&left))
+                                    })
+                                    .and_then(|f| match f.as_ref() {
+                                        Value::Bool(f) => Some(*f),
+                                        _ => None,
                                     });
-                                    if let Some(f) = f {
-                                        if !f {
-                                            break;
-                                        }
-                                    } else {
-                                        return None;
+                                if let Some(f) = f {
+                                    if !f {
+                                        break;
                                     }
+                                } else {
+                                    return None;
                                 }
-                                Some(Rc::new(Value::List(Rc::new(value))))
                             }
-                            _ => None,
-                        },
-                    }
-                } else {
-                    None
-                }
-            }
-            Expr0::Expr1(expr_1) => self.exec_expr_1(expr_1, env),
-        }
-    }
-
-    fn exec_expr_1<'b>(&'b self, expr_1: &Expr1, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr_1 {
-            Expr1::Expr1(left, right, op_code) => {
-                let left = self.exec_expr_1(left, env);
-                let right = self.exec_expr_1(right, env);
-                if let (Some(left), Some(right)) = (left, right) {
-                    let (left, right) = (left.as_ref(), right.as_ref());
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_1_bool(*left, *right, op_code)
-                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
-                        Self::exec_expr_1_str(&left, &right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_1_num(*left, *right, op_code)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            Expr1::Expr2(expr_2) => self.exec_expr_2(expr_2, env),
-        }
-    }
-
-    fn exec_expr_2<'b>(&'b self, expr_2: &Expr2, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr_2 {
-            Expr2::Expr2(left, right, op_code) => {
-                let left = self.exec_expr_2(left, env);
-                let right = self.exec_expr_2(right, env);
-                if let (Some(left), Some(right)) = (left, right) {
-                    let (left, right) = (left.as_ref(), right.as_ref());
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_2_bool(*left, *right, op_code)
-                    } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
-                        Self::exec_expr_2_str(&left, &right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_2_num(*left, *right, op_code)
-                    } else if let (Value::List(left), Value::List(right)) = (left, right) {
-                        Self::exec_expr_2_list(&left, &right, op_code)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            Expr2::Expr3(expr_3) => self.exec_expr_3(expr_3, env),
-        }
-    }
-
-    fn exec_expr_3<'b>(&'b self, expr_3: &Expr3, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr_3 {
-            Expr3::Expr3(left, right, op_code) => {
-                let left = self.exec_expr_3(left, env);
-                let right = self.exec_expr_3(right, env);
-                if let (Some(left), Some(right)) = (&left, &right) {
-                    let (left, right) = (left.as_ref(), right.as_ref());
-                    if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
-                        Self::exec_expr_3_bool(*left, *right, op_code)
-                    } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        Self::exec_expr_3_num(*left, *right, op_code)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            Expr3::Expr4(expr_4) => self.exec_expr_4(expr_4, env),
-        }
-    }
-
-    fn exec_expr_4<'b>(&'b self, expr_4: &Expr4, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match expr_4 {
-            Expr4::Expr4(left, right, op_code) => {
-                let left = self.exec_expr_4(left, env);
-                let right = self.exec_expr_4(right, env);
-                if let (Some(left), Some(right)) = (left, right) {
-                    let (left, right) = (left.as_ref(), right.as_ref());
-                    if let (Value::Num(left), Value::Num(right)) = (left, right) {
-                        self.exec_expr_4_num(*left, *right, op_code)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            Expr4::Unary(unary) => self.exec_expr_unary(unary, env),
-        }
-    }
-
-    fn exec_expr_unary<'b>(&'b self, unary: &Unary, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match unary {
-            Unary::Plus(fnc_call) => {
-                if let Some(val) = self.exec_fnc_call(fnc_call, env) {
-                    match val.as_ref() {
-                        Value::Bool(val) => Self::exec_expr_2_bool(false, *val, &OpCode2::Add),
-                        Value::List(val) => Self::exec_expr_2_list(&vec![], val, &OpCode2::Add),
-                        Value::Num(val) => Self::exec_expr_2_num(0.0, *val, &OpCode2::Add),
-                        Value::Str(val) => {
-                            Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Add)
+                            Some(Rc::new(Value::List(Rc::new(value))))
+                        }
+                        Value::Num(n) => {
+                            let mut value = vec![];
+                            loop {
+                                let left = exec_expr_0(left, run_time);
+                                let f = left.and_then(|left| {
+                                    value.push(Rc::clone(&left));
+                                    match left.as_ref() {
+                                        Value::Num(m) => Some(*m >= *n),
+                                        _ => None,
+                                    }
+                                });
+                                if let Some(f) = f {
+                                    if !f {
+                                        break;
+                                    }
+                                } else {
+                                    return None;
+                                }
+                            }
+                            Some(Rc::new(Value::List(Rc::new(value))))
                         }
                         _ => None,
-                    }
+                    },
+                }
+            } else {
+                None
+            }
+        }
+        Expr0::Expr1(expr_1) => exec_expr_1(expr_1, run_time),
+    }
+}
+
+fn exec_expr_1<'b>(expr_1: &Expr1, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match expr_1 {
+        Expr1::Expr1(left, right, op_code) => {
+            let left = exec_expr_1(left, run_time);
+            let right = exec_expr_1(right, run_time);
+            if let (Some(left), Some(right)) = (left, right) {
+                let (left, right) = (left.as_ref(), right.as_ref());
+                if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                    exec_expr_1_bool(*left, *right, op_code)
+                } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                    exec_expr_1_str(&left, &right, op_code)
+                } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                    exec_expr_1_num(*left, *right, op_code)
                 } else {
                     None
                 }
+            } else {
+                None
             }
-            Unary::Minus(fnc_call) => {
-                if let Some(val) = self.exec_fnc_call(fnc_call, env) {
-                    match val.as_ref() {
-                        Value::Bool(val) => Self::exec_expr_2_bool(false, *val, &OpCode2::Sub),
-                        Value::List(val) => Self::exec_expr_2_list(&vec![], val, &OpCode2::Sub),
-                        Value::Num(val) => Self::exec_expr_2_num(0.0, *val, &OpCode2::Sub),
-                        Value::Str(val) => {
-                            Self::exec_expr_2_str(&String::from(""), val, &OpCode2::Sub)
-                        }
-                        _ => None,
-                    }
+        }
+        Expr1::Expr2(expr_2) => exec_expr_2(expr_2, run_time),
+    }
+}
+
+fn exec_expr_2<'b>(expr_2: &Expr2, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match expr_2 {
+        Expr2::Expr2(left, right, op_code) => {
+            let left = exec_expr_2(left, run_time);
+            let right = exec_expr_2(right, run_time);
+            if let (Some(left), Some(right)) = (left, right) {
+                let (left, right) = (left.as_ref(), right.as_ref());
+                if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                    exec_expr_2_bool(*left, *right, op_code)
+                } else if let (Value::Str(left), Value::Str(right)) = (left, right) {
+                    exec_expr_2_str(&left, &right, op_code)
+                } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                    exec_expr_2_num(*left, *right, op_code)
+                } else if let (Value::List(left), Value::List(right)) = (left, right) {
+                    exec_expr_2_list(&left, &right, op_code)
                 } else {
                     None
                 }
+            } else {
+                None
             }
-            Unary::FncCall(fnc_call) => self.exec_fnc_call(fnc_call, env),
+        }
+        Expr2::Expr3(expr_3) => exec_expr_3(expr_3, run_time),
+    }
+}
+
+fn exec_expr_3<'b>(expr_3: &Expr3, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match expr_3 {
+        Expr3::Expr3(left, right, op_code) => {
+            let left = exec_expr_3(left, run_time);
+            let right = exec_expr_3(right, run_time);
+            if let (Some(left), Some(right)) = (&left, &right) {
+                let (left, right) = (left.as_ref(), right.as_ref());
+                if let (Value::Bool(left), Value::Bool(right)) = (left, right) {
+                    exec_expr_3_bool(*left, *right, op_code)
+                } else if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                    exec_expr_3_num(*left, *right, op_code)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        Expr3::Expr4(expr_4) => exec_expr_4(expr_4, run_time),
+    }
+}
+
+fn exec_expr_4<'b>(expr_4: &Expr4, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match expr_4 {
+        Expr4::Expr4(left, right, op_code) => {
+            let left = exec_expr_4(left, run_time);
+            let right = exec_expr_4(right, run_time);
+            if let (Some(left), Some(right)) = (left, right) {
+                let (left, right) = (left.as_ref(), right.as_ref());
+                if let (Value::Num(left), Value::Num(right)) = (left, right) {
+                    exec_expr_4_num(*left, *right, op_code, run_time)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        Expr4::Unary(unary) => exec_expr_unary(unary, run_time),
+    }
+}
+
+fn exec_expr_unary<'b>(unary: &Unary, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match unary {
+        Unary::Plus(fnc_call) => {
+            if let Some(val) = exec_fnc_call(fnc_call, run_time) {
+                match val.as_ref() {
+                    Value::Bool(val) => exec_expr_2_bool(false, *val, &OpCode2::Add),
+                    Value::List(val) => exec_expr_2_list(&vec![], val, &OpCode2::Add),
+                    Value::Num(val) => exec_expr_2_num(0.0, *val, &OpCode2::Add),
+                    Value::Str(val) => exec_expr_2_str(&String::from(""), val, &OpCode2::Add),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        Unary::Minus(fnc_call) => {
+            if let Some(val) = exec_fnc_call(fnc_call, run_time) {
+                match val.as_ref() {
+                    Value::Bool(val) => exec_expr_2_bool(false, *val, &OpCode2::Sub),
+                    Value::List(val) => exec_expr_2_list(&vec![], val, &OpCode2::Sub),
+                    Value::Num(val) => exec_expr_2_num(0.0, *val, &OpCode2::Sub),
+                    Value::Str(val) => exec_expr_2_str(&String::from(""), val, &OpCode2::Sub),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        Unary::FncCall(fnc_call) => exec_fnc_call(fnc_call, run_time),
+    }
+}
+
+fn exec_fnc_call<'b>(fnc_call: &FncCall, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match fnc_call {
+        FncCall::FncCall(fnc_call, arg) => {
+            let fnc = exec_fnc_call(fnc_call, run_time);
+            if let Some(fnc) = fnc {
+                let fnc = fnc.as_ref();
+                call_like_fnc_with_term(fnc, arg, run_time)
+            } else {
+                None
+            }
+        }
+        FncCall::Reducer(reducer) => exec_reducer(reducer, run_time),
+    }
+}
+
+fn exec_reducer<'b>(reducer: &Reducer, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match reducer {
+        Reducer::RLeft(i, lst) => {
+            let i = exec_reducer(i, run_time);
+            let lst = exec_reducer(lst, run_time);
+            if let (Some(i), Some(lst)) = (i, lst) {
+                match lst.as_ref() {
+                    Value::List(lst) => Some(Rc::new(Value::RLeft(i, Rc::clone(lst)))),
+                    _ => Some(Rc::new(Value::RLeft(i, Rc::new(vec![lst])))),
+                }
+            } else {
+                None
+            }
+        }
+        Reducer::RRight(lst, i) => {
+            let i = exec_reducer(i, run_time);
+            let lst = exec_reducer(lst, run_time);
+            if let (Some(i), Some(lst)) = (i, lst) {
+                match lst.as_ref() {
+                    Value::List(lst) => Some(Rc::new(Value::RRight(i, Rc::clone(lst)))),
+                    _ => Some(Rc::new(Value::RRight(i, Rc::new(vec![lst])))),
+                }
+            } else {
+                None
+            }
+        }
+        Reducer::Term(term) => exec_term(term, run_time),
+    }
+}
+
+fn exec_term<'b>(term: &Term, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match term {
+        Term::Literal(literal) => exec_literal(literal, run_time),
+        Term::List(list) => {
+            let mut values = vec![];
+            for item in list {
+                if let Some(value) = exec_expr(item, run_time) {
+                    values.push(value);
+                } else {
+                    return None;
+                }
+            }
+            Some(Rc::new(Value::List(Rc::new(values))))
+        }
+        Term::Expr(exprs) => {
+            let mut res = None;
+            let mut run_time = run_time.clone();
+            for expr in exprs {
+                res = exec_expr(expr, &mut run_time);
+            }
+            res
         }
     }
+}
 
-    fn exec_fnc_call<'b>(&'b self, fnc_call: &FncCall, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match fnc_call {
-            FncCall::FncCall(fnc_call, arg) => {
-                let fnc = self.exec_fnc_call(fnc_call, env);
-                if let Some(fnc) = fnc {
-                    let fnc = fnc.as_ref();
-                    self.call_like_fnc_with_term(fnc, arg, env)
-                } else {
-                    None
-                }
+fn exec_literal<'b>(literal: &Literal, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
+    match literal {
+        Literal::Ident(ident) => {
+            let ident = Rc::clone(&ident);
+            if let Some(value) = run_time.env.get(&ident) {
+                Some(Rc::clone(value))
+            } else {
+                None
             }
-            FncCall::Reducer(reducer) => self.exec_reducer(reducer, env),
         }
+        Literal::Num(num) => Some(Rc::new(Value::Num(*num))),
+        Literal::Str(str) => Some(Rc::new(Value::Str(Rc::clone(str)))),
+        _ => None,
     }
+}
 
-    fn exec_reducer<'b>(&'b self, reducer: &Reducer, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match reducer {
-            Reducer::RLeft(i, lst) => {
-                let i = self.exec_reducer(i, env);
-                let lst = self.exec_reducer(lst, env);
-                if let (Some(i), Some(lst)) = (i, lst) {
-                    match lst.as_ref() {
-                        Value::List(lst) => Some(Rc::new(Value::RLeft(i, Rc::clone(lst)))),
-                        _ => Some(Rc::new(Value::RLeft(i, Rc::new(vec![lst])))),
-                    }
+fn call_like_fnc_with_term<'b>(
+    fnc: &Value<'b>,
+    arg: &FncCall,
+    run_time: &mut RunTime<'b>,
+) -> Option<Rc<Value<'b>>> {
+    match fnc {
+        Value::List(..)
+        | Value::Str(..)
+        | Value::RLeft(..)
+        | Value::RRight(..)
+        | Value::Fnc(..) => match exec_fnc_call(arg, run_time) {
+            Some(arg) => call_like_fnc_with_value(&fnc, arg, run_time),
+            None => None,
+        },
+        Value::Num(v) => {
+            let n = v.floor() as usize;
+            let mut res = vec![];
+            for _ in 0..n {
+                if let Some(v) = exec_fnc_call(arg, run_time) {
+                    res.push(v);
                 } else {
-                    None
+                    return None;
                 }
             }
-            Reducer::RRight(lst, i) => {
-                let i = self.exec_reducer(i, env);
-                let lst = self.exec_reducer(lst, env);
-                if let (Some(i), Some(lst)) = (i, lst) {
-                    match lst.as_ref() {
-                        Value::List(lst) => Some(Rc::new(Value::RRight(i, Rc::clone(lst)))),
-                        _ => Some(Rc::new(Value::RRight(i, Rc::new(vec![lst])))),
-                    }
-                } else {
-                    None
-                }
-            }
-            Reducer::Term(term) => self.exec_term(term, env),
+            Some(Rc::new(Value::List(Rc::new(res))))
         }
+        _ => None,
     }
+}
 
-    fn exec_term<'b>(&'b self, term: &Term, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match term {
-            Term::Literal(literal) => self.exec_literal(literal, env),
-            Term::List(list) => {
-                let mut values = vec![];
-                for item in list {
-                    if let Some(value) = self.exec_expr(item, env) {
-                        values.push(value);
+fn call_like_fnc_with_value<'b>(
+    fnc: &Value<'b>,
+    arg: Rc<Value<'b>>,
+    run_time: &mut RunTime<'b>,
+) -> Option<Rc<Value<'b>>> {
+    match fnc {
+        Value::Fnc(fnc) => fnc(arg),
+        Value::List(vs) => match arg.as_ref() {
+            Value::Num(n) => {
+                let n = n.floor();
+                let idx = if n >= 0.0 {
+                    n as usize
+                } else {
+                    vs.len() - (-n as usize)
+                };
+                vs.get(idx).map(|i| Rc::clone(i))
+            }
+            Value::Fnc(fnc) => {
+                let mut rs = vec![];
+                for v in vs.as_ref() {
+                    if let Some(r) = fnc(Rc::clone(v)) {
+                        rs.push(r);
+                    }
+                }
+                Some(Rc::new(Value::List(Rc::new(rs))))
+            }
+            _ => None,
+        },
+        Value::Str(v) => match arg.as_ref() {
+            Value::Num(n) => {
+                let n = n.floor();
+                let idx = if n >= 0.0 {
+                    n as usize
+                } else {
+                    v.len() - (-n as usize)
+                };
+                v.as_str()
+                    .chars()
+                    .collect::<Vec<char>>()
+                    .get(idx)
+                    .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
+            }
+            _ => None,
+        },
+        Value::Num(v) => {
+            let n = v.floor() as usize;
+            let mut res = vec![];
+            for _ in 0..n {
+                res.push(Rc::clone(&arg));
+            }
+            Some(Rc::new(Value::List(Rc::new(res))))
+        }
+        Value::RLeft(i, lst) => {
+            let mut pre = Rc::clone(i);
+            for x in lst.iter() {
+                if let Some(f) = call_like_fnc_with_value(&arg, Rc::clone(&pre), run_time) {
+                    if let Some(p) = call_like_fnc_with_value(&f, Rc::clone(x), run_time) {
+                        pre = p;
                     } else {
                         return None;
                     }
-                }
-                Some(Rc::new(Value::List(Rc::new(values))))
-            }
-            Term::Expr(exprs) => {
-                let mut res = None;
-                let mut env = env.clone();
-                for expr in exprs {
-                    res = self.exec_expr(expr, &mut env);
-                }
-                res
-            }
-        }
-    }
-
-    fn exec_literal<'b>(&'b self, literal: &Literal, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
-        match literal {
-            Literal::Ident(ident) => {
-                let ident = Rc::clone(&ident);
-                if let Some(value) = env.get(&ident) {
-                    Some(Rc::clone(value))
                 } else {
-                    None
+                    return None;
                 }
             }
-            Literal::Num(num) => Some(Rc::new(Value::Num(*num))),
-            Literal::Str(str) => Some(Rc::new(Value::Str(Rc::clone(str)))),
-            _ => None,
+            Some(pre)
         }
-    }
-
-    fn call_like_fnc_with_term<'b>(
-        &'b self,
-        fnc: &Value<'b>,
-        arg: &FncCall,
-        env: &mut Env<'b>,
-    ) -> Option<Rc<Value<'b>>> {
-        match fnc {
-            Value::List(..)
-            | Value::Str(..)
-            | Value::RLeft(..)
-            | Value::RRight(..)
-            | Value::Fnc(..) => match self.exec_fnc_call(arg, env) {
-                Some(arg) => self.call_like_fnc_with_value(&fnc, arg, env),
-                None => None,
-            },
-            Value::Num(v) => {
-                let n = v.floor() as usize;
-                let mut res = vec![];
-                for _ in 0..n {
-                    if let Some(v) = self.exec_fnc_call(arg, env) {
-                        res.push(v);
+        Value::RRight(i, lst) => {
+            let mut pre = Rc::clone(i);
+            for x in lst.iter().rev() {
+                if let Some(f) = call_like_fnc_with_value(&arg, Rc::clone(&pre), run_time) {
+                    if let Some(p) = call_like_fnc_with_value(&f, Rc::clone(x), run_time) {
+                        pre = p;
                     } else {
                         return None;
                     }
+                } else {
+                    return None;
                 }
-                Some(Rc::new(Value::List(Rc::new(res))))
             }
-            _ => None,
+            Some(pre)
         }
+        _ => None,
     }
+}
 
-    fn call_like_fnc_with_value<'b>(
-        &self,
-        fnc: &Value<'b>,
-        arg: Rc<Value<'b>>,
-        env: &mut Env<'b>,
-    ) -> Option<Rc<Value<'b>>> {
-        match fnc {
-            Value::Fnc(fnc) => fnc(arg),
-            Value::List(vs) => match arg.as_ref() {
-                Value::Num(n) => {
-                    let n = n.floor();
-                    let idx = if n >= 0.0 {
-                        n as usize
-                    } else {
-                        vs.len() - (-n as usize)
-                    };
-                    vs.get(idx).map(|i| Rc::clone(i))
-                }
-                Value::Fnc(fnc) => {
-                    let mut rs = vec![];
-                    for v in vs.as_ref() {
-                        if let Some(r) = fnc(Rc::clone(v)) {
-                            rs.push(r);
-                        }
-                    }
-                    Some(Rc::new(Value::List(Rc::new(rs))))
-                }
-                _ => None,
-            },
-            Value::Str(v) => match arg.as_ref() {
-                Value::Num(n) => {
-                    let n = n.floor();
-                    let idx = if n >= 0.0 {
-                        n as usize
-                    } else {
-                        v.len() - (-n as usize)
-                    };
-                    v.as_str()
-                        .chars()
-                        .collect::<Vec<char>>()
-                        .get(idx)
-                        .map(|i| Rc::new(Value::Str(Rc::new(i.to_string()))))
-                }
-                _ => None,
-            },
-            Value::Num(v) => {
-                let n = v.floor() as usize;
-                let mut res = vec![];
-                for _ in 0..n {
-                    res.push(Rc::clone(&arg));
-                }
-                Some(Rc::new(Value::List(Rc::new(res))))
+fn exec_expr_1_bool<'b>(left: bool, right: bool, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
+        OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
+        OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
+        OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
+        OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
+        OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
+    }
+}
+
+fn exec_expr_1_str<'b>(left: &String, right: &String, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
+        OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
+        OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
+        OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
+        OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
+        OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
+    }
+}
+
+fn exec_expr_1_num<'b>(left: f64, right: f64, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
+        OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
+        OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
+        OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
+        OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
+        OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
+    }
+}
+
+fn exec_expr_2_bool<'b>(left: bool, right: bool, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode2::Add => Some(Rc::new(Value::Bool(left || right))),
+        _ => None,
+    }
+}
+
+fn exec_expr_2_str<'b>(left: &String, right: &String, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode2::Add => Some(Rc::new(Value::Str(Rc::new(format!("{}{}", left, right))))),
+        _ => None,
+    }
+}
+
+fn exec_expr_2_num<'b>(left: f64, right: f64, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode2::Add => Some(Rc::new(Value::Num(left + right))),
+        OpCode2::Sub => Some(Rc::new(Value::Num(left - right))),
+    }
+}
+
+fn exec_expr_2_list<'b>(
+    left: &Vec<Rc<Value<'b>>>,
+    right: &Vec<Rc<Value<'b>>>,
+    op_code: &OpCode2,
+) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode2::Add => Some(Rc::new(Value::List({
+            let mut res = vec![];
+            for i in left {
+                res.push(Rc::clone(i));
             }
-            Value::RLeft(i, lst) => {
-                let mut pre = Rc::clone(i);
-                for x in lst.iter() {
-                    if let Some(f) = self.call_like_fnc_with_value(&arg, Rc::clone(&pre), env) {
-                        if let Some(p) = self.call_like_fnc_with_value(&f, Rc::clone(x), env) {
-                            pre = p;
-                        } else {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                Some(pre)
+            for i in right {
+                res.push(Rc::clone(i));
             }
-            Value::RRight(i, lst) => {
-                let mut pre = Rc::clone(i);
-                for x in lst.iter().rev() {
-                    if let Some(f) = self.call_like_fnc_with_value(&arg, Rc::clone(&pre), env) {
-                        if let Some(p) = self.call_like_fnc_with_value(&f, Rc::clone(x), env) {
-                            pre = p;
-                        } else {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                Some(pre)
+            Rc::new(res)
+        }))),
+        OpCode2::Sub => None,
+    }
+}
+
+fn exec_expr_3_bool<'b>(left: bool, right: bool, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode3::Multi => Some(Rc::new(Value::Bool(left && right))),
+        _ => None,
+    }
+}
+
+fn exec_expr_3_num<'b>(left: f64, right: f64, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode3::Multi => Some(Rc::new(Value::Num(left * right))),
+        OpCode3::Div => Some(Rc::new(Value::Num(left / right))),
+        OpCode3::Mod => Some(Rc::new(Value::Num(left % right))),
+    }
+}
+
+fn exec_expr_4_num<'b>(
+    left: f64,
+    right: f64,
+    op_code: &OpCode4,
+    run_time: &mut RunTime,
+) -> Option<Rc<Value<'b>>> {
+    match op_code {
+        OpCode4::SDice => Some(Rc::new(Value::Num(exec_dice(left, right, run_time) as f64))),
+        OpCode4::LDice => {
+            let mut res = vec![];
+            let num = left.floor() as usize;
+            for _ in 0..num {
+                res.push(Rc::new(Value::Num(exec_dice(1.0, right, run_time))));
             }
-            _ => None,
+            Some(Rc::new(Value::List(Rc::new(res))))
         }
     }
+}
 
-    fn exec_expr_1_bool<'b>(left: bool, right: bool, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
-            OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
-            OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
-            OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
-            OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
-            OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
-        }
+fn exec_dice(num: f64, a: f64, run_time: &mut RunTime) -> f64 {
+    let num = num.floor() as usize;
+    let a = a.floor() as u32;
+    let mut res = 0;
+    for _ in 0..num {
+        res += (&mut *run_time.rand.borrow_mut())(a) + 1;
     }
-
-    fn exec_expr_1_str<'b>(
-        left: &String,
-        right: &String,
-        op_code: &OpCode1,
-    ) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
-            OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
-            OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
-            OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
-            OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
-            OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
-        }
-    }
-
-    fn exec_expr_1_num<'b>(left: f64, right: f64, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
-            OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
-            OpCode1::EqGreaterThan => Some(Rc::new(Value::Bool(left >= right))),
-            OpCode1::EqLessThan => Some(Rc::new(Value::Bool(left <= right))),
-            OpCode1::GreaterThan => Some(Rc::new(Value::Bool(left > right))),
-            OpCode1::LessThan => Some(Rc::new(Value::Bool(left < right))),
-        }
-    }
-
-    fn exec_expr_2_bool<'b>(left: bool, right: bool, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode2::Add => Some(Rc::new(Value::Bool(left || right))),
-            _ => None,
-        }
-    }
-
-    fn exec_expr_2_str<'b>(
-        left: &String,
-        right: &String,
-        op_code: &OpCode2,
-    ) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode2::Add => Some(Rc::new(Value::Str(Rc::new(format!("{}{}", left, right))))),
-            _ => None,
-        }
-    }
-
-    fn exec_expr_2_num<'b>(left: f64, right: f64, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode2::Add => Some(Rc::new(Value::Num(left + right))),
-            OpCode2::Sub => Some(Rc::new(Value::Num(left - right))),
-        }
-    }
-
-    fn exec_expr_2_list<'b>(
-        left: &Vec<Rc<Value<'b>>>,
-        right: &Vec<Rc<Value<'b>>>,
-        op_code: &OpCode2,
-    ) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode2::Add => Some(Rc::new(Value::List({
-                let mut res = vec![];
-                for i in left {
-                    res.push(Rc::clone(i));
-                }
-                for i in right {
-                    res.push(Rc::clone(i));
-                }
-                Rc::new(res)
-            }))),
-            OpCode2::Sub => None,
-        }
-    }
-
-    fn exec_expr_3_bool<'b>(left: bool, right: bool, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode3::Multi => Some(Rc::new(Value::Bool(left && right))),
-            _ => None,
-        }
-    }
-
-    fn exec_expr_3_num<'b>(left: f64, right: f64, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode3::Multi => Some(Rc::new(Value::Num(left * right))),
-            OpCode3::Div => Some(Rc::new(Value::Num(left / right))),
-            OpCode3::Mod => Some(Rc::new(Value::Num(left % right))),
-        }
-    }
-
-    fn exec_expr_4_num<'b>(
-        &self,
-        left: f64,
-        right: f64,
-        op_code: &OpCode4,
-    ) -> Option<Rc<Value<'b>>> {
-        match op_code {
-            OpCode4::SDice => Some(Rc::new(Value::Num(self.exec_dice(left, right) as f64))),
-            OpCode4::LDice => {
-                let mut res = vec![];
-                let num = left.floor() as usize;
-                for _ in 0..num {
-                    res.push(Rc::new(Value::Num(self.exec_dice(1.0, right))));
-                }
-                Some(Rc::new(Value::List(Rc::new(res))))
-            }
-        }
-    }
-
-    fn exec_dice(&self, num: f64, a: f64) -> f64 {
-        let num = num.floor() as usize;
-        let a = a.floor() as u32;
-        let mut res = 0;
-        for _ in 0..num {
-            res += (&mut *self.rand.borrow_mut())(a) + 1;
-        }
-        res as f64
-    }
+    res as f64
 }
 
 impl ExecResult {
@@ -686,11 +657,12 @@ impl Display for ExecResult {
     }
 }
 
-impl<'a> ExecEnv<'a> {
-    pub fn new() -> Self {
+impl<'a> RunTime<'a> {
+    pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         let mut me = Self {
             env: Env::new(),
             log: Rc::new(RefCell::new(vec![])),
+            rand: Rc::new(RefCell::new(rand)),
         };
 
         me.set_log();
@@ -770,6 +742,16 @@ impl<'a> ExecEnv<'a> {
     }
 }
 
+impl<'a> Clone for RunTime<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            env: self.env.clone(),
+            rand: Rc::clone(&self.rand),
+            log: Rc::new(RefCell::new(self.log.borrow().clone())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -784,8 +766,7 @@ mod tests {
     fn num() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("2.0", &ex_env);
+        let result = exec("2.0", &run_time);
         assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
 
@@ -793,8 +774,7 @@ mod tests {
     fn add_1_1() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("1+1", &ex_env);
+        let result = exec("1+1", &run_time);
         assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
 
@@ -802,8 +782,7 @@ mod tests {
     fn sub_1_1() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("1-1", &ex_env);
+        let result = exec("1-1", &run_time);
         assert_eq!(result, Some(ExecResult::Num(0.0)));
     }
 
@@ -811,8 +790,7 @@ mod tests {
     fn multi_2_3() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("2*3", &ex_env);
+        let result = exec("2*3", &run_time);
         assert_eq!(result, Some(ExecResult::Num(6.0)));
     }
 
@@ -820,8 +798,7 @@ mod tests {
     fn div_3_2() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("3/2", &ex_env);
+        let result = exec("3/2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(1.5)));
     }
 
@@ -829,8 +806,7 @@ mod tests {
     fn use_block() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("3*(4+5)", &ex_env);
+        let result = exec("3*(4+5)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(27.0)));
     }
 
@@ -838,8 +814,7 @@ mod tests {
     fn use_sequence() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("3*(1+2;2+3;3+4)", &ex_env);
+        let result = exec("3*(1+2;2+3;3+4)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(21.0)));
     }
 
@@ -847,8 +822,7 @@ mod tests {
     fn use_var() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec("(x:=10;x)", &ex_env);
+        let result = exec("(x:=10;x)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(10.0)));
     }
 
@@ -856,8 +830,7 @@ mod tests {
     fn use_function_from_ident() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec(r"(f:=\x.x+1;f.2)", &ex_env);
+        let result = exec(r"(f:=\x.x+1;f.2)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -865,8 +838,7 @@ mod tests {
     fn use_function_direct() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec(r"(\x.x+1).2", &ex_env);
+        let result = exec(r"(\x.x+1).2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -874,8 +846,7 @@ mod tests {
     fn access_list_head() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec(r"[1,2,3].2", &ex_env);
+        let result = exec(r"[1,2,3].2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -883,8 +854,7 @@ mod tests {
     fn access_list_tail() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec(r"[1,2,3].(0-1)", &ex_env);
+        let result = exec(r"[1,2,3].(0-1)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -892,8 +862,7 @@ mod tests {
     fn unary_minus() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let result = run_time.exec(r"[1,2,3].(-1)", &ex_env);
+        let result = exec(r"[1,2,3].(-1)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -901,8 +870,7 @@ mod tests {
     fn counted_loop() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"5.(5)", &ex_env);
+        let x = exec(r"5.(5)", &run_time);
         let y = Some(ExecResult::List(vec![
             ExecResult::Num(5.0),
             ExecResult::Num(5.0),
@@ -917,8 +885,7 @@ mod tests {
     fn fnc_chain_direct() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"2>>\x.x+1", &ex_env);
+        let x = exec(r"2>>\x.x+1", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -926,8 +893,7 @@ mod tests {
     fn fnc_chain_with_ident() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"(f:=\x.x+1;2>>f)", &ex_env);
+        let x = exec(r"(f:=\x.x+1;2>>f)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -935,9 +901,8 @@ mod tests {
     fn map_list() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"[1,1,1,1,1].(\x.x+4)", &ex_env);
-        let y = run_time.exec(r"[5,5,5,5,5]", &ex_env);
+        let x = exec(r"[1,1,1,1,1].(\x.x+4)", &run_time);
+        let y = exec(r"[5,5,5,5,5]", &run_time);
         assert_eq!(x, y);
     }
 
@@ -945,8 +910,7 @@ mod tests {
     fn call_fnc_by_two_arg() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"((\x.\y.x+y).(1).(2))", &ex_env);
+        let x = exec(r"((\x.\y.x+y).(1).(2))", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -954,8 +918,7 @@ mod tests {
     fn capture_env() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"(a:=2;f:=\x.a+x;a:=3;f.1)", &ex_env);
+        let x = exec(r"(a:=2;f:=\x.a+x;a:=3;f.1)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -963,8 +926,7 @@ mod tests {
     fn if_else_true() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"if(1+1==2)=>(3)else(4)", &ex_env);
+        let x = exec(r"if(1+1==2)=>(3)else(4)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -972,8 +934,7 @@ mod tests {
     fn if_else_false() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"if(1+1!=2)=>(3)else(4)", &ex_env);
+        let x = exec(r"if(1+1!=2)=>(3)else(4)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(4.0)));
     }
 
@@ -981,8 +942,7 @@ mod tests {
     fn if_if_else_else_true_true() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)", &ex_env);
+        let x = exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(1.0)));
     }
 
@@ -990,8 +950,7 @@ mod tests {
     fn reduce_left() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"0#>[1,2,3,4,5].(\p.\c.p+c)", &ex_env);
+        let x = exec(r"0#>[1,2,3,4,5].(\p.\c.p+c)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(15.0)));
     }
 
@@ -999,8 +958,7 @@ mod tests {
     fn reduce_right() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"[1,2,3,4,5]<#1.(\p.\c.p*c)", &ex_env);
+        let x = exec(r"[1,2,3,4,5]<#1.(\p.\c.p*c)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(120.0)));
     }
 
@@ -1008,9 +966,8 @@ mod tests {
     fn reverse() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"[1,2,3,4,5]<#[].(\p.\c.p+[c])", &ex_env);
-        let y = run_time.exec(r"[5,4,3,2,1]", &ex_env);
+        let x = exec(r"[1,2,3,4,5]<#[].(\p.\c.p+[c])", &run_time);
+        let y = exec(r"[5,4,3,2,1]", &run_time);
         assert_eq!(x, y);
     }
 
@@ -1018,23 +975,21 @@ mod tests {
     fn shadowing() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"(x:=0;x:=x+1;x:=x+1;x)", &ex_env);
+        let x = exec(r"(x:=0;x:=x+1;x:=x+1;x)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(2.0)));
     }
 
     #[test]
     fn outside_function() {
-        let mut rng = rand::thread_rng();
-        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let mut x = 0.0;
         {
-            let mut ex_env = ExecEnv::new();
-            ex_env.set_function("addx", |_| {
+            let mut rng = rand::thread_rng();
+            let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+            run_time.set_function("addx", |_| {
                 x = x + 1.0;
                 Some(Rc::new(Value::Num(x)))
             });
-            run_time.exec(r"addx.1", &ex_env);
+            exec(r"addx.1", &run_time);
         }
         assert_eq!(x, 1.0);
     }
@@ -1043,10 +998,9 @@ mod tests {
     fn logging() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"[0.0,1.0,2.0]>>log>>log", &ex_env);
+        let x = exec(r"[0.0,1.0,2.0]>>log>>log", &run_time);
         if let Some(x) = x {
-            assert_eq!(ex_env.log(), vec![format!("{}", x), format!("{}", x)]);
+            assert_eq!(run_time.log(), vec![format!("{}", x), format!("{}", x)]);
         } else {
             unreachable!();
         }
@@ -1056,8 +1010,7 @@ mod tests {
     fn list_len() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec(r"[0.0,1.0,2.0]>>len", &ex_env);
+        let x = exec(r"[0.0,1.0,2.0]>>len", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -1065,8 +1018,7 @@ mod tests {
     fn str_len() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec("\"あいうえおabcde\">>len", &ex_env);
+        let x = exec("\"あいうえおabcde\">>len", &run_time);
         assert_eq!(x, Some(ExecResult::Num(10.0)));
     }
 
@@ -1074,9 +1026,8 @@ mod tests {
     fn pack_array() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let ex_env = ExecEnv::new();
-        let x = run_time.exec("[[1,2,3],[4,5],[6,7,8,9]]>>pack", &ex_env);
-        let y = run_time.exec("[[1,4,6],[2,5,7],[3,8],[9]]", &ex_env);
+        let x = exec("[[1,2,3],[4,5],[6,7,8,9]]>>pack", &run_time);
+        let y = exec("[[1,4,6],[2,5,7],[3,8],[9]]", &run_time);
         assert_eq!(x, y);
     }
 }
