@@ -4,26 +4,26 @@ mod ast;
 mod parser;
 
 use ast::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct RunTime<'a> {
-    rand: Box<dyn FnMut(u32) -> u32 + 'a>,
+    rand: RefCell<Box<dyn FnMut(u32) -> u32 + 'a>>,
 }
 
-#[derive(Debug, PartialEq)]
-enum Value {
+enum Value<'a> {
     None,
     Bool(bool),
     Str(Rc<String>),
     Num(f64),
-    List(Rc<Vec<Rc<Value>>>),
-    Fnc(Rc<String>, Rc<FncDef>, Env),
-    RLeft(Rc<Value>, Rc<Vec<Rc<Value>>>),
-    RRight(Rc<Value>, Rc<Vec<Rc<Value>>>),
+    List(Rc<Vec<Rc<Value<'a>>>>),
+    Fnc(Box<dyn Fn(Rc<Value<'a>>) -> Option<Rc<Value<'a>>> + 'a>),
+    RLeft(Rc<Value<'a>>, Rc<Vec<Rc<Value<'a>>>>),
+    RRight(Rc<Value<'a>>, Rc<Vec<Rc<Value<'a>>>>),
 }
 
-type Env = HashMap<Rc<String>, Rc<Value>>;
+type Env<'a> = HashMap<Rc<String>, Rc<Value<'a>>>;
 
 #[derive(Debug, PartialEq)]
 pub enum ExecResult {
@@ -38,13 +38,13 @@ pub enum ExecResult {
 impl<'a> RunTime<'a> {
     pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         Self {
-            rand: Box::new(rand),
+            rand: RefCell::new(Box::new(rand)),
         }
     }
 
-    pub fn exec(&mut self, code: &str) -> Option<ExecResult> {
-        let mut ast = parser::parse::expr(code);
-        let value = match &mut ast {
+    pub fn exec(&self, code: &str) -> Option<ExecResult> {
+        let ast = parser::parse::expr(code);
+        let value = match &ast {
             Ok(expr) => self
                 .exec_expr(expr, &mut HashMap::new())
                 .map(|x| ExecResult::from(x.as_ref())),
@@ -53,7 +53,7 @@ impl<'a> RunTime<'a> {
         value
     }
 
-    fn exec_expr(&mut self, expr: &mut Expr, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr<'b: 'c, 'c>(&'b self, expr: &Expr, env: &mut Env<'c>) -> Option<Rc<Value<'c>>> {
         match expr {
             Expr::Assign(ident, fnc_chain) => {
                 let value = self.exec_branch(fnc_chain, env);
@@ -66,7 +66,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_branch(&mut self, branch: &mut Branch, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_branch<'b: 'c, 'c>(
+        &'b self,
+        branch: &Branch,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match branch {
             Branch::Branch(c, left, right) => {
                 if let Some(c) = self.exec_fnc_chain(c, env) {
@@ -87,7 +91,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_chain(&mut self, fnc_chain: &mut FncChain, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_fnc_chain<'b: 'c, 'c>(
+        &'b self,
+        fnc_chain: &FncChain,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match fnc_chain {
             FncChain::FncChain(left, right) => {
                 let left = self.exec_fnc_chain(left, env);
@@ -102,35 +110,47 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_def(&mut self, fnc_def: &mut FncDef, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_fnc_def<'b: 'c, 'c>(
+        &'b self,
+        fnc_def: &FncDef,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match fnc_def {
-            FncDef::FncDef(arg, right) => Some(Rc::new(Value::Fnc(
-                Rc::clone(arg),
-                Rc::clone(right),
-                env.clone(),
-            ))),
+            FncDef::FncDef(arg, right) => {
+                let arg = Rc::clone(arg);
+                let right = Rc::clone(right);
+                let env = env.clone();
+                Some(Rc::new(Value::Fnc(Box::new(
+                    move |argv| -> Option<Rc<Value<'c>>> {
+                        let mut env = env.clone();
+                        env.insert(Rc::clone(&arg), argv);
+                        self.exec_fnc_def(&Rc::clone(&right), &mut env)
+                    },
+                ))))
+            }
             FncDef::Expr0(expr_0) => self.exec_expr_0(expr_0, env),
         }
     }
 
-    fn exec_expr_0(&mut self, expr_0: &mut Expr0, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_0<'b: 'c, 'c>(
+        &'b self,
+        expr_0: &Expr0,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match expr_0 {
             Expr0::Expr0(left, right, op_code) => {
                 let right = self.exec_expr_0(right, env);
                 if let Some(right) = right {
                     match op_code {
                         OpCode0::At => match right.as_ref() {
-                            Value::Fnc(a, i, e) => {
+                            Value::Fnc(fnc) => {
                                 let mut value = vec![];
                                 loop {
                                     let left = self.exec_expr_0(left, env);
                                     let f = left
                                         .and_then(|left| {
                                             value.push(Rc::clone(&left));
-                                            self.call_fnc(
-                                                (Rc::clone(&a), &i, &mut e.clone()),
-                                                Rc::clone(&left),
-                                            )
+                                            fnc(Rc::clone(&left))
                                         })
                                         .and_then(|f| match f.as_ref() {
                                             Value::Bool(f) => Some(*f),
@@ -178,7 +198,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_1(&mut self, expr_1: &mut Expr1, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_1<'b: 'c, 'c>(
+        &'b self,
+        expr_1: &Expr1,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match expr_1 {
             Expr1::Expr1(left, right, op_code) => {
                 let left = self.exec_expr_1(left, env);
@@ -202,7 +226,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_2(&mut self, expr_2: &mut Expr2, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_2<'b: 'c, 'c>(
+        &'b self,
+        expr_2: &Expr2,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match expr_2 {
             Expr2::Expr2(left, right, op_code) => {
                 let left = self.exec_expr_2(left, env);
@@ -228,7 +256,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_3(&mut self, expr_3: &mut Expr3, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_3<'b: 'c, 'c>(
+        &'b self,
+        expr_3: &Expr3,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match expr_3 {
             Expr3::Expr3(left, right, op_code) => {
                 let left = self.exec_expr_3(left, env);
@@ -250,7 +282,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_4(&mut self, expr_4: &mut Expr4, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_4<'b: 'c, 'c>(
+        &'b self,
+        expr_4: &Expr4,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match expr_4 {
             Expr4::Expr4(left, right, op_code) => {
                 let left = self.exec_expr_4(left, env);
@@ -270,7 +306,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_unary(&mut self, unary: &mut Unary, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_expr_unary<'b: 'c, 'c>(
+        &'b self,
+        unary: &Unary,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match unary {
             Unary::Plus(fnc_call) => {
                 if let Some(val) = self.exec_fnc_call(fnc_call, env) {
@@ -308,7 +348,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_call(&mut self, fnc_call: &mut FncCall, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_fnc_call<'b: 'c, 'c>(
+        &'b self,
+        fnc_call: &FncCall,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match fnc_call {
             FncCall::FncCall(fnc_call, arg) => {
                 let fnc = self.exec_fnc_call(fnc_call, env);
@@ -323,7 +367,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_reducer(&mut self, reducer: &mut Reducer, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_reducer<'b: 'c, 'c>(
+        &'b self,
+        reducer: &Reducer,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match reducer {
             Reducer::RLeft(i, lst) => {
                 let i = self.exec_reducer(i, env);
@@ -353,7 +401,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_term(&mut self, term: &mut Term, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_term<'b: 'c, 'c>(&'b self, term: &Term, env: &mut Env<'c>) -> Option<Rc<Value<'c>>> {
         match term {
             Term::Literal(literal) => self.exec_literal(literal, env),
             Term::List(list) => {
@@ -378,7 +426,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_literal(&mut self, literal: &Literal, env: &mut Env) -> Option<Rc<Value>> {
+    fn exec_literal<'b: 'c, 'c>(
+        &'b self,
+        literal: &Literal,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match literal {
             Literal::Ident(ident) => {
                 let ident = Rc::clone(&ident);
@@ -394,12 +446,12 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_like_fnc_with_term(
-        &mut self,
-        fnc: &Value,
-        arg: &mut FncCall,
-        env: &mut Env,
-    ) -> Option<Rc<Value>> {
+    fn call_like_fnc_with_term<'b: 'c, 'c>(
+        &'b self,
+        fnc: &Value<'c>,
+        arg: &FncCall,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match fnc {
             Value::List(..)
             | Value::Str(..)
@@ -425,14 +477,14 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_like_fnc_with_value(
-        &mut self,
-        fnc: &Value,
-        arg: Rc<Value>,
-        env: &mut Env,
-    ) -> Option<Rc<Value>> {
+    fn call_like_fnc_with_value<'b: 'c, 'c>(
+        &'b self,
+        fnc: &Value<'c>,
+        arg: Rc<Value<'c>>,
+        env: &mut Env<'c>,
+    ) -> Option<Rc<Value<'c>>> {
         match fnc {
-            Value::Fnc(a, i, e) => self.call_fnc((Rc::clone(a), i, &mut e.clone()), arg),
+            Value::Fnc(fnc) => fnc(arg),
             Value::List(vs) => match arg.as_ref() {
                 Value::Num(n) => {
                     let n = n.floor();
@@ -443,12 +495,10 @@ impl<'a> RunTime<'a> {
                     };
                     vs.get(idx).map(|i| Rc::clone(i))
                 }
-                Value::Fnc(a, i, e) => {
+                Value::Fnc(fnc) => {
                     let mut rs = vec![];
                     for v in vs.as_ref() {
-                        if let Some(r) =
-                            self.call_fnc((Rc::clone(a), i, &mut e.clone()), Rc::clone(v))
-                        {
+                        if let Some(r) = fnc(Rc::clone(v)) {
                             rs.push(r);
                         }
                     }
@@ -514,17 +564,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_fnc(
-        &mut self,
-        fnc: (Rc<String>, &FncDef, &mut Env),
-        arg: Rc<Value>,
-    ) -> Option<Rc<Value>> {
-        fnc.2.insert(fnc.0, arg);
-        let res = self.exec_fnc_def(&mut fnc.1.clone(), fnc.2);
-        res
-    }
-
-    fn exec_expr_1_bool(left: bool, right: bool, op_code: &OpCode1) -> Option<Rc<Value>> {
+    fn exec_expr_1_bool<'b>(left: bool, right: bool, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
             OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
@@ -535,7 +575,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_1_str(left: &String, right: &String, op_code: &OpCode1) -> Option<Rc<Value>> {
+    fn exec_expr_1_str<'b>(
+        left: &String,
+        right: &String,
+        op_code: &OpCode1,
+    ) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
             OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
@@ -546,7 +590,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_1_num(left: f64, right: f64, op_code: &OpCode1) -> Option<Rc<Value>> {
+    fn exec_expr_1_num<'b>(left: f64, right: f64, op_code: &OpCode1) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode1::Equal => Some(Rc::new(Value::Bool(left == right))),
             OpCode1::NotEq => Some(Rc::new(Value::Bool(left != right))),
@@ -557,32 +601,36 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_2_bool(left: bool, right: bool, op_code: &OpCode2) -> Option<Rc<Value>> {
+    fn exec_expr_2_bool<'b>(left: bool, right: bool, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode2::Add => Some(Rc::new(Value::Bool(left || right))),
             _ => None,
         }
     }
 
-    fn exec_expr_2_str(left: &String, right: &String, op_code: &OpCode2) -> Option<Rc<Value>> {
+    fn exec_expr_2_str<'b>(
+        left: &String,
+        right: &String,
+        op_code: &OpCode2,
+    ) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode2::Add => Some(Rc::new(Value::Str(Rc::new(format!("{}{}", left, right))))),
             _ => None,
         }
     }
 
-    fn exec_expr_2_num(left: f64, right: f64, op_code: &OpCode2) -> Option<Rc<Value>> {
+    fn exec_expr_2_num<'b>(left: f64, right: f64, op_code: &OpCode2) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode2::Add => Some(Rc::new(Value::Num(left + right))),
             OpCode2::Sub => Some(Rc::new(Value::Num(left - right))),
         }
     }
 
-    fn exec_expr_2_list(
-        left: &Vec<Rc<Value>>,
-        right: &Vec<Rc<Value>>,
+    fn exec_expr_2_list<'b>(
+        left: &Vec<Rc<Value<'b>>>,
+        right: &Vec<Rc<Value<'b>>>,
         op_code: &OpCode2,
-    ) -> Option<Rc<Value>> {
+    ) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode2::Add => Some(Rc::new(Value::List({
                 let mut res = vec![];
@@ -598,14 +646,14 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_3_bool(left: bool, right: bool, op_code: &OpCode3) -> Option<Rc<Value>> {
+    fn exec_expr_3_bool<'b>(left: bool, right: bool, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode3::Multi => Some(Rc::new(Value::Bool(left && right))),
             _ => None,
         }
     }
 
-    fn exec_expr_3_num(left: f64, right: f64, op_code: &OpCode3) -> Option<Rc<Value>> {
+    fn exec_expr_3_num<'b>(left: f64, right: f64, op_code: &OpCode3) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode3::Multi => Some(Rc::new(Value::Num(left * right))),
             OpCode3::Div => Some(Rc::new(Value::Num(left / right))),
@@ -613,7 +661,12 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_4_num(&mut self, left: f64, right: f64, op_code: &OpCode4) -> Option<Rc<Value>> {
+    fn exec_expr_4_num<'b>(
+        &self,
+        left: f64,
+        right: f64,
+        op_code: &OpCode4,
+    ) -> Option<Rc<Value<'b>>> {
         match op_code {
             OpCode4::SDice => Some(Rc::new(Value::Num(self.exec_dice(left, right) as f64))),
             OpCode4::LDice => {
@@ -627,12 +680,12 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_dice(&mut self, num: f64, a: f64) -> f64 {
+    fn exec_dice(&self, num: f64, a: f64) -> f64 {
         let num = num.floor() as usize;
         let a = a.floor() as u32;
         let mut res = 0;
         for _ in 0..num {
-            res += (self.rand)(a) + 1;
+            res += (&mut *self.rand.borrow_mut())(a) + 1;
         }
         res as f64
     }
