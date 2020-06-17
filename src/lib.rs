@@ -35,7 +35,10 @@ pub enum ExecResult {
     Err(String),
 }
 
-pub struct ExEnv<'a>(Env<'a>);
+pub struct ExEnv<'a> {
+    env: Env<'a>,
+    log: Rc<RefCell<Vec<String>>>,
+}
 
 impl<'a> RunTime<'a> {
     pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
@@ -48,7 +51,7 @@ impl<'a> RunTime<'a> {
         let ast = parser::parse::expr(code);
         let value = match &ast {
             Ok(expr) => {
-                let res = self.exec_expr(expr, &mut env.0.clone());
+                let res = self.exec_expr(expr, &mut env.env.clone());
                 res.map(|x| ExecResult::from(x.as_ref()))
             }
             Err(x) => Some(ExecResult::Err(x.to_string())),
@@ -666,16 +669,38 @@ impl ExecResult {
 
 impl<'a> ExEnv<'a> {
     pub fn new() -> Self {
-        Self(Env::new())
+        let mut me = Self {
+            env: Env::new(),
+            log: Rc::new(RefCell::new(vec![])),
+        };
+
+        me.set_log();
+
+        me
     }
 
     pub fn set_function(
         &mut self,
         name: impl Into<String>,
-        fnc: impl Fn(Rc<Value<'a>>) -> Option<Rc<Value<'a>>> + 'a,
+        fnc: impl FnMut(Rc<Value<'a>>) -> Option<Rc<Value<'a>>> + 'a,
     ) {
-        self.0
-            .insert(Rc::new(name.into()), Rc::new(Value::Fnc(Box::new(fnc))));
+        let fnc = RefCell::new(Box::new(fnc));
+        let fnc = Box::new(move |v| (&mut *fnc.borrow_mut())(v));
+        let fnc = Rc::new(Value::Fnc(fnc));
+        self.env.insert(Rc::new(name.into()), fnc);
+    }
+
+    pub fn log(&self) -> Vec<String> {
+        self.log.borrow().clone()
+    }
+
+    fn set_log(&mut self) {
+        let log = Rc::clone(&self.log);
+        self.set_function("log", move |val| {
+            log.borrow_mut()
+                .push(format!("{:?}", ExecResult::from(&val)));
+            Some(val)
+        });
     }
 }
 
@@ -934,18 +959,30 @@ mod tests {
 
     #[test]
     fn outside_function() {
-        use std::cell::Cell;
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = Cell::new(0.0);
+        let mut x = 0.0;
         {
             let mut ex_env = ExEnv::new();
             ex_env.set_function("addx", |_| {
-                x.set(x.get() + 1.0);
-                Some(Rc::new(Value::Num(x.get())))
+                x = x + 1.0;
+                Some(Rc::new(Value::Num(x)))
             });
             run_time.exec(r"addx.1", &ex_env);
-            assert_eq!(x.get(), 1.0);
+        }
+        assert_eq!(x, 1.0);
+    }
+
+    #[test]
+    fn logging() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let ex_env = ExEnv::new();
+        let x = run_time.exec(r"[0.0,1.0,2.0]>>log>>log", &ex_env);
+        if let Some(x) = x {
+            assert_eq!(ex_env.log(), vec![format!("{:?}", x), format!("{:?}", x)]);
+        } else {
+            unreachable!();
         }
     }
 }
