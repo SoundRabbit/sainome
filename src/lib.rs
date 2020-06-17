@@ -695,6 +695,7 @@ impl<'a> ExecEnv<'a> {
 
         me.set_log();
         me.set_len();
+        me.set_pack();
 
         me
     }
@@ -731,6 +732,41 @@ impl<'a> ExecEnv<'a> {
             };
             len.map(|len| Rc::new(Value::Num(len)))
         })
+    }
+
+    fn set_pack(&mut self) {
+        self.set_function("pack", move |val| {
+            if let Value::List(lst) = val.as_ref() {
+                let mut vs = vec![];
+                for v in lst.as_ref() {
+                    if let Value::List(v) = v.as_ref() {
+                        vs.push(v);
+                    } else {
+                        return None;
+                    }
+                }
+                let acc: Vec<Vec<Rc<Value>>> = vec![];
+                let vs = vs.into_iter().fold(acc, |mut acc, x| {
+                    let mut idx = 0;
+                    for i in x.as_ref() {
+                        if idx < acc.len() {
+                            acc[idx].push(Rc::clone(i));
+                        } else {
+                            acc.push(vec![Rc::clone(i)])
+                        }
+                        idx += 1;
+                    }
+                    acc
+                });
+                let mut lst = vec![];
+                for v in vs {
+                    lst.push(Rc::new(Value::List(Rc::new(v))));
+                }
+                Some(Rc::new(Value::List(Rc::new(lst))))
+            } else {
+                None
+            }
+        });
     }
 }
 
@@ -1032,5 +1068,15 @@ mod tests {
         let ex_env = ExecEnv::new();
         let x = run_time.exec("\"あいうえおabcde\">>len", &ex_env);
         assert_eq!(x, Some(ExecResult::Num(10.0)));
+    }
+
+    #[test]
+    fn pack_array() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let ex_env = ExecEnv::new();
+        let x = run_time.exec("[[1,2,3],[4,5],[6,7,8,9]]>>pack", &ex_env);
+        let y = run_time.exec("[[1,4,6],[2,5,7],[3,8],[9]]", &ex_env);
+        assert_eq!(x, y);
     }
 }
