@@ -22,9 +22,7 @@ impl<'a> RunTime<'a> {
             rand: Rc::new(RefCell::new(rand)),
         };
 
-        me.set_log();
-        me.set_len();
-        me.set_pack();
+        me.set_defaults();
 
         me
     }
@@ -44,15 +42,15 @@ impl<'a> RunTime<'a> {
         self.log.borrow().clone()
     }
 
-    fn set_log(&mut self) {
-        let log = Rc::clone(&self.log);
-        self.set_function("log", move |val| {
-            log.borrow_mut().push(format!("{}", ExecResult::from(&val)));
-            Some(val)
+    fn set_defaults(&mut self) {
+        self.set_function("log", {
+            let log = Rc::clone(&self.log);
+            move |val| {
+                log.borrow_mut().push(format!("{}", ExecResult::from(&val)));
+                Some(val)
+            }
         });
-    }
 
-    fn set_len(&mut self) {
         self.set_function("len", move |val| {
             let len = match val.as_ref() {
                 Value::List(xs) => Some(xs.len() as f64),
@@ -60,10 +58,8 @@ impl<'a> RunTime<'a> {
                 _ => None,
             };
             len.map(|len| Rc::new(Value::Num(len)))
-        })
-    }
+        });
 
-    fn set_pack(&mut self) {
         self.set_function("pack", move |val| {
             if let Value::List(lst) = val.as_ref() {
                 let mut vs = vec![];
