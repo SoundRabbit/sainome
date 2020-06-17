@@ -102,5 +102,123 @@ impl<'a> RunTime<'a> {
                 None
             }
         });
+
+        self.set_function("str", |val| {
+            Some(Rc::new(Value::Str(Rc::new(format!(
+                "{}",
+                ExecResult::from(&val)
+            )))))
+        });
+
+        self.set_function("max", |val| match val.as_ref() {
+            Value::List(list) => {
+                if list.len() > 0 {
+                    if let Some(list) = bool_list(&list) {
+                        let i = list[0];
+                        let max = list.into_iter().fold(i, |m, v| if m < v { v } else { m });
+                        Some(Rc::new(Value::Bool(max)))
+                    } else if let Some(list) = num_list(&list) {
+                        let i = list[0];
+                        let max: f64 = list.into_iter().fold(i, |m, v| m.max(v));
+                        Some(Rc::new(Value::Num(max)))
+                    } else if let Some(list) = str_list(&list) {
+                        let i = Rc::clone(&list[0]);
+                        let max = list.into_iter().fold(i, |m, v| m.max(v));
+                        Some(Rc::new(Value::Str(max)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
+
+        self.set_function("min", |val| match val.as_ref() {
+            Value::List(list) => {
+                if list.len() > 0 {
+                    if let Some(list) = bool_list(&list) {
+                        let i = list[0];
+                        let max = list.into_iter().fold(i, |m, v| if m > v { v } else { m });
+                        Some(Rc::new(Value::Bool(max)))
+                    } else if let Some(list) = num_list(&list) {
+                        let i = list[0];
+                        let max: f64 = list.into_iter().fold(i, |m, v| m.min(v));
+                        Some(Rc::new(Value::Num(max)))
+                    } else if let Some(list) = str_list(&list) {
+                        let i = Rc::clone(&list[0]);
+                        let max = list.into_iter().fold(i, |m, v| m.min(v));
+                        Some(Rc::new(Value::Str(max)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
+
+        self.set_function("sort", |val| match val.as_ref() {
+            Value::List(list) => {
+                if list.len() > 0 {
+                    if let Some(mut list) = bool_list(&list) {
+                        list.sort();
+                        let list = list.into_iter().map(|x| Rc::new(Value::Bool(x))).collect();
+                        Some(Rc::new(Value::List(Rc::new(list))))
+                    } else if let Some(mut list) = num_list(&list) {
+                        list.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                        let list = list.into_iter().map(|x| Rc::new(Value::Num(x))).collect();
+                        Some(Rc::new(Value::List(Rc::new(list))))
+                    } else if let Some(mut list) = str_list(&list) {
+                        list.sort();
+                        let list = list.into_iter().map(|x| Rc::new(Value::Str(x))).collect();
+                        Some(Rc::new(Value::List(Rc::new(list))))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
     }
+}
+
+fn bool_list(list: &Vec<Rc<Value>>) -> Option<Vec<bool>> {
+    let mut res = vec![];
+    for item in list {
+        if let Value::Bool(item) = item.as_ref() {
+            res.push(*item);
+        } else {
+            return None;
+        }
+    }
+    Some(res)
+}
+
+fn num_list(list: &Vec<Rc<Value>>) -> Option<Vec<f64>> {
+    let mut res = vec![];
+    for item in list {
+        if let Value::Num(item) = item.as_ref() {
+            res.push(*item);
+        } else {
+            return None;
+        }
+    }
+    Some(res)
+}
+
+fn str_list(list: &Vec<Rc<Value>>) -> Option<Vec<Rc<String>>> {
+    let mut res = vec![];
+    for item in list {
+        if let Value::Str(item) = item.as_ref() {
+            res.push(Rc::clone(item));
+        } else {
+            return None;
+        }
+    }
+    Some(res)
 }

@@ -344,4 +344,45 @@ mod tests {
         let y = exec("[[1,4,6],[2,5,7],[3,8],[9]]", &run_time);
         assert_eq!(x, y);
     }
+
+    #[test]
+    fn min_num() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[1,2,3,4,5]>>min", &run_time);
+        assert_eq!(x, Some(ExecResult::Num(1.0)));
+    }
+
+    #[test]
+    fn min_str() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[\"a\",\"abc\",\"dc\",\"c\",\"f\"]>>min", &run_time);
+        assert_eq!(x, Some(ExecResult::Str(Rc::new(String::from("a")))));
+    }
+
+    #[test]
+    fn max_num() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[1,2,3,4,5]>>max", &run_time);
+        assert_eq!(x, Some(ExecResult::Num(5.0)));
+    }
+
+    #[test]
+    fn max_str() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[\"a\",\"abc\",\"dc\",\"c\",\"f\"]>>max", &run_time);
+        assert_eq!(x, Some(ExecResult::Str(Rc::new(String::from("f")))));
+    }
+
+    #[test]
+    fn sort_num() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[1,6,2,3,4,7,8,5,9]>>sort", &run_time);
+        let y = exec("[1,2,3,4,5,6,7,8,9]", &run_time);
+        assert_eq!(x, y);
+    }
 }
