@@ -718,7 +718,7 @@ mod tests {
     #[test]
     fn num() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("2.0");
         assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
@@ -726,7 +726,7 @@ mod tests {
     #[test]
     fn add_1_1() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("1+1");
         assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn sub_1_1() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("1-1");
         assert_eq!(result, Some(ExecResult::Num(0.0)));
     }
@@ -742,7 +742,7 @@ mod tests {
     #[test]
     fn multi_2_3() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("2*3");
         assert_eq!(result, Some(ExecResult::Num(6.0)));
     }
@@ -750,7 +750,7 @@ mod tests {
     #[test]
     fn div_3_2() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("3/2");
         assert_eq!(result, Some(ExecResult::Num(1.5)));
     }
@@ -758,7 +758,7 @@ mod tests {
     #[test]
     fn use_block() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("3*(4+5)");
         assert_eq!(result, Some(ExecResult::Num(27.0)));
     }
@@ -766,7 +766,7 @@ mod tests {
     #[test]
     fn use_sequence() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("3*(1+2;2+3;3+4)");
         assert_eq!(result, Some(ExecResult::Num(21.0)));
     }
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn use_var() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec("(x:=10;x)");
         assert_eq!(result, Some(ExecResult::Num(10.0)));
     }
@@ -782,7 +782,7 @@ mod tests {
     #[test]
     fn use_function_from_ident() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"(f:=\x.x+1;f.2)");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
@@ -790,7 +790,7 @@ mod tests {
     #[test]
     fn use_function_direct() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"(\x.x+1).2");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
@@ -798,7 +798,7 @@ mod tests {
     #[test]
     fn access_list_head() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"[1,2,3].2");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn access_list_tail() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"[1,2,3].(0-1)");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
@@ -814,7 +814,7 @@ mod tests {
     #[test]
     fn unary_minus() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let result = run_time.exec(r"[1,2,3].(-1)");
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
@@ -822,7 +822,7 @@ mod tests {
     #[test]
     fn counted_loop() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"5.(5)");
         let y = Some(ExecResult::List(vec![
             ExecResult::Num(5.0),
@@ -837,7 +837,7 @@ mod tests {
     #[test]
     fn fnc_chain_direct() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"2>>\x.x+1");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
@@ -845,7 +845,7 @@ mod tests {
     #[test]
     fn fnc_chain_with_ident() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"(f:=\x.x+1;2>>f)");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
@@ -853,7 +853,7 @@ mod tests {
     #[test]
     fn map_list() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"[1,1,1,1,1].(\x.x+4)");
         let y = run_time.exec(r"[5,5,5,5,5]");
         assert_eq!(x, y);
@@ -862,7 +862,7 @@ mod tests {
     #[test]
     fn call_fnc_by_two_arg() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"((\x.\y.x+y).(1).(2))");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
@@ -870,7 +870,7 @@ mod tests {
     #[test]
     fn capture_env() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"(a:=2;f:=\x.a+x;a:=3;f.1)");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
@@ -878,7 +878,7 @@ mod tests {
     #[test]
     fn if_else_true() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"if(1+1==2)=>(3)else(4)");
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
@@ -886,7 +886,7 @@ mod tests {
     #[test]
     fn if_else_false() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"if(1+1!=2)=>(3)else(4)");
         assert_eq!(x, Some(ExecResult::Num(4.0)));
     }
@@ -894,7 +894,7 @@ mod tests {
     #[test]
     fn if_if_else_else_true_true() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)");
         assert_eq!(x, Some(ExecResult::Num(1.0)));
     }
@@ -902,7 +902,7 @@ mod tests {
     #[test]
     fn reduce_left() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"0#>[1,2,3,4,5].(\p.\c.p+c)");
         assert_eq!(x, Some(ExecResult::Num(15.0)));
     }
@@ -910,7 +910,7 @@ mod tests {
     #[test]
     fn reduce_right() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"[1,2,3,4,5]<#1.(\p.\c.p*c)");
         assert_eq!(x, Some(ExecResult::Num(120.0)));
     }
@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn reverse() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"[1,2,3,4,5]<#[].(\p.\c.p+[c])");
         let y = run_time.exec(r"[5,4,3,2,1]");
         assert_eq!(x, y);
@@ -927,7 +927,7 @@ mod tests {
     #[test]
     fn shadowing() {
         let mut rng = rand::thread_rng();
-        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = run_time.exec(r"(x:=0;x:=x+1;x:=x+1;x)");
         assert_eq!(x, Some(ExecResult::Num(2.0)));
     }
