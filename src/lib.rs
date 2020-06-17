@@ -694,6 +694,7 @@ impl<'a> ExecEnv<'a> {
         };
 
         me.set_log();
+        me.set_len();
 
         me
     }
@@ -719,6 +720,17 @@ impl<'a> ExecEnv<'a> {
             log.borrow_mut().push(format!("{}", ExecResult::from(&val)));
             Some(val)
         });
+    }
+
+    fn set_len(&mut self) {
+        self.set_function("len", move |val| {
+            let len = match val.as_ref() {
+                Value::List(xs) => Some(xs.len() as f64),
+                Value::Str(xs) => Some(xs.chars().collect::<Vec<char>>().len() as f64),
+                _ => None,
+            };
+            len.map(|len| Rc::new(Value::Num(len)))
+        })
     }
 }
 
@@ -1002,5 +1014,23 @@ mod tests {
         } else {
             unreachable!();
         }
+    }
+
+    #[test]
+    fn list_len() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let ex_env = ExecEnv::new();
+        let x = run_time.exec(r"[0.0,1.0,2.0]>>len", &ex_env);
+        assert_eq!(x, Some(ExecResult::Num(3.0)));
+    }
+
+    #[test]
+    fn str_len() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let ex_env = ExecEnv::new();
+        let x = run_time.exec("\"あいうえおabcde\">>len", &ex_env);
+        assert_eq!(x, Some(ExecResult::Num(10.0)));
     }
 }

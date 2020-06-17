@@ -10,8 +10,15 @@ peg::parser! {
         pub rule ident() -> String
             = x:$(['A'..='Z' | 'a'..='z']+) { x.to_string() }
 
+        pub rule zero_len_str() -> String
+            = "\"" "\"" { "".to_string() }
+
+        pub rule len_str() -> String
+            = "\"" xs:$(([_]!"\"")*) x:$([_]) "\"" { xs.to_string() + x }
+
         pub rule string() -> String
-            = "\"" x:$(!"\""*) "\"" { x.to_string() }
+            = x:zero_len_str() / x:len_str() { x }
+
         pub rule reference() -> Vec<String>
             = "{" x:$(!"."*) ** "." "}" { x.iter().map(|x| x.to_string()).collect() }
 
