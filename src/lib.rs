@@ -53,7 +53,7 @@ impl<'a> RunTime<'a> {
         value
     }
 
-    fn exec_expr<'b: 'c, 'c>(&'b self, expr: &Expr, env: &mut Env<'c>) -> Option<Rc<Value<'c>>> {
+    fn exec_expr<'b>(&'b self, expr: &Expr, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr {
             Expr::Assign(ident, fnc_chain) => {
                 let value = self.exec_branch(fnc_chain, env);
@@ -66,11 +66,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_branch<'b: 'c, 'c>(
-        &'b self,
-        branch: &Branch,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_branch<'b>(&'b self, branch: &Branch, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match branch {
             Branch::Branch(c, left, right) => {
                 if let Some(c) = self.exec_fnc_chain(c, env) {
@@ -91,11 +87,11 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_chain<'b: 'c, 'c>(
+    fn exec_fnc_chain<'b>(
         &'b self,
         fnc_chain: &FncChain,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+        env: &mut Env<'b>,
+    ) -> Option<Rc<Value<'b>>> {
         match fnc_chain {
             FncChain::FncChain(left, right) => {
                 let left = self.exec_fnc_chain(left, env);
@@ -110,18 +106,14 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_def<'b: 'c, 'c>(
-        &'b self,
-        fnc_def: &FncDef,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_fnc_def<'b>(&'b self, fnc_def: &FncDef, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match fnc_def {
             FncDef::FncDef(arg, right) => {
                 let arg = Rc::clone(arg);
                 let right = Rc::clone(right);
                 let env = env.clone();
                 Some(Rc::new(Value::Fnc(Box::new(
-                    move |argv| -> Option<Rc<Value<'c>>> {
+                    move |argv| -> Option<Rc<Value<'b>>> {
                         let mut env = env.clone();
                         env.insert(Rc::clone(&arg), argv);
                         self.exec_fnc_def(&Rc::clone(&right), &mut env)
@@ -132,11 +124,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_0<'b: 'c, 'c>(
-        &'b self,
-        expr_0: &Expr0,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_0<'b>(&'b self, expr_0: &Expr0, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr_0 {
             Expr0::Expr0(left, right, op_code) => {
                 let right = self.exec_expr_0(right, env);
@@ -198,11 +186,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_1<'b: 'c, 'c>(
-        &'b self,
-        expr_1: &Expr1,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_1<'b>(&'b self, expr_1: &Expr1, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr_1 {
             Expr1::Expr1(left, right, op_code) => {
                 let left = self.exec_expr_1(left, env);
@@ -226,11 +210,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_2<'b: 'c, 'c>(
-        &'b self,
-        expr_2: &Expr2,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_2<'b>(&'b self, expr_2: &Expr2, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr_2 {
             Expr2::Expr2(left, right, op_code) => {
                 let left = self.exec_expr_2(left, env);
@@ -256,11 +236,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_3<'b: 'c, 'c>(
-        &'b self,
-        expr_3: &Expr3,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_3<'b>(&'b self, expr_3: &Expr3, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr_3 {
             Expr3::Expr3(left, right, op_code) => {
                 let left = self.exec_expr_3(left, env);
@@ -282,11 +258,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_4<'b: 'c, 'c>(
-        &'b self,
-        expr_4: &Expr4,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_4<'b>(&'b self, expr_4: &Expr4, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match expr_4 {
             Expr4::Expr4(left, right, op_code) => {
                 let left = self.exec_expr_4(left, env);
@@ -306,11 +278,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_expr_unary<'b: 'c, 'c>(
-        &'b self,
-        unary: &Unary,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_expr_unary<'b>(&'b self, unary: &Unary, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match unary {
             Unary::Plus(fnc_call) => {
                 if let Some(val) = self.exec_fnc_call(fnc_call, env) {
@@ -348,11 +316,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_fnc_call<'b: 'c, 'c>(
-        &'b self,
-        fnc_call: &FncCall,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_fnc_call<'b>(&'b self, fnc_call: &FncCall, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match fnc_call {
             FncCall::FncCall(fnc_call, arg) => {
                 let fnc = self.exec_fnc_call(fnc_call, env);
@@ -367,11 +331,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_reducer<'b: 'c, 'c>(
-        &'b self,
-        reducer: &Reducer,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_reducer<'b>(&'b self, reducer: &Reducer, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match reducer {
             Reducer::RLeft(i, lst) => {
                 let i = self.exec_reducer(i, env);
@@ -401,7 +361,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_term<'b: 'c, 'c>(&'b self, term: &Term, env: &mut Env<'c>) -> Option<Rc<Value<'c>>> {
+    fn exec_term<'b>(&'b self, term: &Term, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match term {
             Term::Literal(literal) => self.exec_literal(literal, env),
             Term::List(list) => {
@@ -426,11 +386,7 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn exec_literal<'b: 'c, 'c>(
-        &'b self,
-        literal: &Literal,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn exec_literal<'b>(&'b self, literal: &Literal, env: &mut Env<'b>) -> Option<Rc<Value<'b>>> {
         match literal {
             Literal::Ident(ident) => {
                 let ident = Rc::clone(&ident);
@@ -446,12 +402,12 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_like_fnc_with_term<'b: 'c, 'c>(
+    fn call_like_fnc_with_term<'b>(
         &'b self,
-        fnc: &Value<'c>,
+        fnc: &Value<'b>,
         arg: &FncCall,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+        env: &mut Env<'b>,
+    ) -> Option<Rc<Value<'b>>> {
         match fnc {
             Value::List(..)
             | Value::Str(..)
@@ -477,12 +433,12 @@ impl<'a> RunTime<'a> {
         }
     }
 
-    fn call_like_fnc_with_value<'b: 'c, 'c>(
-        &'b self,
-        fnc: &Value<'c>,
-        arg: Rc<Value<'c>>,
-        env: &mut Env<'c>,
-    ) -> Option<Rc<Value<'c>>> {
+    fn call_like_fnc_with_value<'b>(
+        &self,
+        fnc: &Value<'b>,
+        arg: Rc<Value<'b>>,
+        env: &mut Env<'b>,
+    ) -> Option<Rc<Value<'b>>> {
         match fnc {
             Value::Fnc(fnc) => fnc(arg),
             Value::List(vs) => match arg.as_ref() {
