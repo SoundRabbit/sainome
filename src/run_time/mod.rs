@@ -14,6 +14,16 @@ pub struct RunTime<'a> {
     rand: Rc<RefCell<dyn FnMut(u32) -> u32 + 'a>>,
 }
 
+impl<'a> Clone for RunTime<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            env: self.env.clone(),
+            rand: Rc::clone(&self.rand),
+            log: Rc::new(RefCell::new(self.log.borrow().clone())),
+        }
+    }
+}
+
 impl<'a> RunTime<'a> {
     pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         let mut me = Self {
@@ -92,15 +102,5 @@ impl<'a> RunTime<'a> {
                 None
             }
         });
-    }
-}
-
-impl<'a> Clone for RunTime<'a> {
-    fn clone(&self) -> Self {
-        Self {
-            env: self.env.clone(),
-            rand: Rc::clone(&self.rand),
-            log: Rc::new(RefCell::new(self.log.borrow().clone())),
-        }
     }
 }
