@@ -7,6 +7,7 @@ use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
 pub use exec::exec;
+pub use exec::exec_mut;
 
 pub struct RunTime<'a> {
     env: Env<'a>,

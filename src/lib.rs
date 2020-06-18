@@ -9,6 +9,7 @@ use std::fmt::Display;
 use std::rc::Rc;
 
 pub use run_time::exec;
+pub use run_time::exec_mut;
 pub use run_time::RunTime;
 
 pub enum Value<'a> {

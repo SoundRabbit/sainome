@@ -6,10 +6,14 @@ use crate::Value;
 use std::rc::Rc;
 
 pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> Option<ExecResult> {
+    exec_mut(code, &mut run_time.clone())
+}
+
+pub fn exec_mut<'a>(code: &str, run_time: &mut RunTime<'a>) -> Option<ExecResult> {
     let ast = parser::parse::expr(code);
     let value = match &ast {
         Ok(expr) => {
-            let res = exec_expr(expr, &mut run_time.clone());
+            let res = exec_expr(expr, run_time);
             res.map(|x| ExecResult::from(x.as_ref()))
         }
         Err(x) => Some(ExecResult::Err(x.to_string())),
