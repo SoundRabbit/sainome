@@ -62,7 +62,7 @@ impl Display for ExecResult {
                 write!(f, "[{}]", fmt.join(", "))
             }
             ExecResult::Num(x) => write!(f, "{}", x),
-            ExecResult::Str(x) => write!(f, "\"{}\"", x),
+            ExecResult::Str(x) => write!(f, "{}", x),
         }
     }
 }
