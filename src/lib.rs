@@ -314,7 +314,10 @@ mod tests {
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = exec(r"[0.0,1.0,2.0]>>log>>log", &run_time);
         if let Some(x) = x {
-            assert_eq!(run_time.log(), vec![format!("{}", x), format!("{}", x)]);
+            assert_eq!(
+                run_time.log().clone(),
+                vec![format!("{}", x), format!("{}", x)]
+            );
         } else {
             unreachable!();
         }

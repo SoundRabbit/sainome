@@ -3,7 +3,7 @@ mod exec;
 use crate::Env;
 use crate::ExecResult;
 use crate::Value;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
 pub use exec::exec;
@@ -48,8 +48,12 @@ impl<'a> RunTime<'a> {
         self.env.insert(Rc::new(name.into()), fnc);
     }
 
-    pub fn log(&self) -> Vec<String> {
-        self.log.borrow().clone()
+    pub fn log(&self) -> Ref<Vec<String>> {
+        self.log.borrow()
+    }
+
+    pub fn clear_log(&self) {
+        self.log.borrow_mut().clear();
     }
 
     fn set_defaults(&mut self) {
