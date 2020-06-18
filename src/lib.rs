@@ -392,4 +392,12 @@ mod tests {
         let y = exec("[1, 2, 3, 4, 5, 6, 7, 8, 9]", &run_time);
         assert_eq!(x, y);
     }
+
+    #[test]
+    fn sum_of_num() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let x = exec("[1, 2, 3, 4, 5, 6, 7, 8, 9] >> sum", &run_time);
+        assert_eq!(x, Some(ExecResult::Num(45.0)));
+    }
 }

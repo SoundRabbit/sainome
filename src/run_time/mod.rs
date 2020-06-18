@@ -189,6 +189,37 @@ impl<'a> RunTime<'a> {
             }
             _ => None,
         });
+
+        self.set_function("sum", |val| match val.as_ref() {
+            Value::List(list) => {
+                if list.len() > 0 {
+                    if let Some(list) = bool_list(&list) {
+                        let i = list[0];
+                        let mut iter = list.into_iter();
+                        iter.next();
+                        let sum = iter.fold(i, |p, c| p || c);
+                        Some(Rc::new(Value::Bool(sum)))
+                    } else if let Some(list) = num_list(&list) {
+                        let i = list[0];
+                        let mut iter = list.into_iter();
+                        iter.next();
+                        let sum: f64 = iter.fold(i, |p, c| p + c);
+                        Some(Rc::new(Value::Num(sum)))
+                    } else if let Some(list) = str_list(&list) {
+                        let i = list[0].to_string();
+                        let mut iter = list.into_iter();
+                        iter.next();
+                        let sum = iter.fold(i, |p, c| p + c.as_ref());
+                        Some(Rc::new(Value::Str(Rc::new(sum))))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
     }
 }
 
