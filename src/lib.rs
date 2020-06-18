@@ -89,7 +89,7 @@ mod tests {
     fn add_1_1() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("1+1", &run_time);
+        let result = exec("1 + 1", &run_time);
         assert_eq!(result, Some(ExecResult::Num(2.0)));
     }
 
@@ -97,7 +97,7 @@ mod tests {
     fn sub_1_1() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("1-1", &run_time);
+        let result = exec("1 - 1", &run_time);
         assert_eq!(result, Some(ExecResult::Num(0.0)));
     }
 
@@ -105,7 +105,7 @@ mod tests {
     fn multi_2_3() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("2*3", &run_time);
+        let result = exec("2 * 3", &run_time);
         assert_eq!(result, Some(ExecResult::Num(6.0)));
     }
 
@@ -113,7 +113,7 @@ mod tests {
     fn div_3_2() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("3/2", &run_time);
+        let result = exec("3 / 2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(1.5)));
     }
 
@@ -121,7 +121,7 @@ mod tests {
     fn use_block() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("3*(4+5)", &run_time);
+        let result = exec("3 * (4 + 5)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(27.0)));
     }
 
@@ -129,7 +129,7 @@ mod tests {
     fn use_sequence() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("3*(1+2;2+3;3+4)", &run_time);
+        let result = exec("3 * (1 + 2; 2 + 3; 3 + 4)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(21.0)));
     }
 
@@ -137,7 +137,7 @@ mod tests {
     fn use_var() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec("(x:=10;x)", &run_time);
+        let result = exec("(x := 10; x)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(10.0)));
     }
 
@@ -145,7 +145,7 @@ mod tests {
     fn use_function_from_ident() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec(r"(f:=\x.x+1;f.2)", &run_time);
+        let result = exec(r"(f := \x. x + 1; f.2)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -153,7 +153,7 @@ mod tests {
     fn use_function_direct() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec(r"(\x.x+1).2", &run_time);
+        let result = exec(r"(\x. x + 1).2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -161,7 +161,7 @@ mod tests {
     fn access_list_head() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec(r"[1,2,3].2", &run_time);
+        let result = exec(r"[1, 2, 3].2", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -169,7 +169,7 @@ mod tests {
     fn access_list_tail() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec(r"[1,2,3].(0-1)", &run_time);
+        let result = exec(r"[1, 2, 3].(0-1)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -177,7 +177,7 @@ mod tests {
     fn unary_minus() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let result = exec(r"[1,2,3].(-1)", &run_time);
+        let result = exec(r"[1, 2, 3].(-1)", &run_time);
         assert_eq!(result, Some(ExecResult::Num(3.0)));
     }
 
@@ -200,7 +200,7 @@ mod tests {
     fn fnc_chain_direct() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"2>>\x.x+1", &run_time);
+        let x = exec(r"2 >> \x. x + 1", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -208,7 +208,7 @@ mod tests {
     fn fnc_chain_with_ident() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"(f:=\x.x+1;2>>f)", &run_time);
+        let x = exec(r"(f := \x. x + 1; 2 >> f)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -216,8 +216,8 @@ mod tests {
     fn map_list() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"[1,1,1,1,1].(\x.x+4)", &run_time);
-        let y = exec(r"[5,5,5,5,5]", &run_time);
+        let x = exec(r"[1, 1, 1, 1, 1].(\x. x + 4)", &run_time);
+        let y = exec(r"[5, 5, 5, 5, 5]", &run_time);
         assert_eq!(x, y);
     }
 
@@ -225,7 +225,7 @@ mod tests {
     fn call_fnc_by_two_arg() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"((\x.\y.x+y).(1).(2))", &run_time);
+        let x = exec(r"((\x. \y. x + y).(1).(2))", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -233,7 +233,7 @@ mod tests {
     fn capture_env() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"(a:=2;f:=\x.a+x;a:=3;f.1)", &run_time);
+        let x = exec(r"(a := 2; f := \x. a + x; a := 3; f.1)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -241,7 +241,7 @@ mod tests {
     fn if_else_true() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"if(1+1==2)=>(3)else(4)", &run_time);
+        let x = exec(r"if 1+1==2 => 3 else 4", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -249,7 +249,7 @@ mod tests {
     fn if_else_false() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"if(1+1!=2)=>(3)else(4)", &run_time);
+        let x = exec(r"if(1 + 1 != 2)=>(3)else(4)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(4.0)));
     }
 
@@ -257,7 +257,10 @@ mod tests {
     fn if_if_else_else_true_true() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"if(1+1==2)=>if(1+2==3)=>(1)else(2)else(3)", &run_time);
+        let x = exec(
+            r"if 1 + 1 == 2 => if 1 + 2 ==3 => 1 else 2 else 3",
+            &run_time,
+        );
         assert_eq!(x, Some(ExecResult::Num(1.0)));
     }
 
@@ -265,7 +268,7 @@ mod tests {
     fn reduce_left() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"0#>[1,2,3,4,5].(\p.\c.p+c)", &run_time);
+        let x = exec(r"0#>[1, 2, 3, 4, 5].(\p. \c. p + c)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(15.0)));
     }
 
@@ -273,7 +276,7 @@ mod tests {
     fn reduce_right() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"[1,2,3,4,5]<#1.(\p.\c.p*c)", &run_time);
+        let x = exec(r"[1, 2, 3, 4, 5]<#1.(\p. \c. p * c)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(120.0)));
     }
 
@@ -281,8 +284,8 @@ mod tests {
     fn reverse() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"[1,2,3,4,5]<#[].(\p.\c.p+[c])", &run_time);
-        let y = exec(r"[5,4,3,2,1]", &run_time);
+        let x = exec(r"[1, 2, 3, 4, 5]<#[].(\p. \c. p + [c])", &run_time);
+        let y = exec(r"[5, 4, 3, 2, 1]", &run_time);
         assert_eq!(x, y);
     }
 
@@ -290,7 +293,7 @@ mod tests {
     fn shadowing() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"(x:=0;x:=x+1;x:=x+1;x)", &run_time);
+        let x = exec(r"(x := 0; x := x + 1; x := x + 1; x)", &run_time);
         assert_eq!(x, Some(ExecResult::Num(2.0)));
     }
 
@@ -313,7 +316,7 @@ mod tests {
     fn logging() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"[0.0,1.0,2.0]>>log>>log", &run_time);
+        let x = exec(r"[0.0, 1.0, 2.0] >> log >> log", &run_time);
         if let Some(x) = x {
             assert_eq!(
                 run_time.log().clone(),
@@ -328,7 +331,7 @@ mod tests {
     fn list_len() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec(r"[0.0,1.0,2.0]>>len", &run_time);
+        let x = exec(r"[0.0, 1.0, 2.0] >> len", &run_time);
         assert_eq!(x, Some(ExecResult::Num(3.0)));
     }
 
@@ -336,7 +339,7 @@ mod tests {
     fn str_len() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("\"あいうえおabcde\">>len", &run_time);
+        let x = exec("\"あいうえおabcde\" >> len", &run_time);
         assert_eq!(x, Some(ExecResult::Num(10.0)));
     }
 
@@ -344,8 +347,8 @@ mod tests {
     fn pack_array() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[[1,2,3],[4,5],[6,7,8,9]]>>pack", &run_time);
-        let y = exec("[[1,4,6],[2,5,7],[3,8],[9]]", &run_time);
+        let x = exec("[[1, 2, 3], [4, 5], [6, 7, 8, 9]]>>pack", &run_time);
+        let y = exec("[[1, 4, 6], [2, 5, 7], [3, 8], [9]]", &run_time);
         assert_eq!(x, y);
     }
 
@@ -353,7 +356,7 @@ mod tests {
     fn min_num() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[1,2,3,4,5]>>min", &run_time);
+        let x = exec("[1, 2, 3, 4, 5] >> min", &run_time);
         assert_eq!(x, Some(ExecResult::Num(1.0)));
     }
 
@@ -361,7 +364,7 @@ mod tests {
     fn min_str() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[\"a\",\"abc\",\"dc\",\"c\",\"f\"]>>min", &run_time);
+        let x = exec("[\"a\", \"abc\", \"dc\", \"c\", \"f\"] >> min", &run_time);
         assert_eq!(x, Some(ExecResult::Str(Rc::new(String::from("a")))));
     }
 
@@ -369,7 +372,7 @@ mod tests {
     fn max_num() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[1,2,3,4,5]>>max", &run_time);
+        let x = exec("[1, 2, 3, 4, 5] >> max", &run_time);
         assert_eq!(x, Some(ExecResult::Num(5.0)));
     }
 
@@ -377,7 +380,7 @@ mod tests {
     fn max_str() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[\"a\",\"abc\",\"dc\",\"c\",\"f\"]>>max", &run_time);
+        let x = exec("[\"a\", \"abc\", \"dc\", \"c\", \"f\"]>>max", &run_time);
         assert_eq!(x, Some(ExecResult::Str(Rc::new(String::from("f")))));
     }
 
@@ -385,8 +388,8 @@ mod tests {
     fn sort_num() {
         let mut rng = rand::thread_rng();
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
-        let x = exec("[1,6,2,3,4,7,8,5,9]>>sort", &run_time);
-        let y = exec("[1,2,3,4,5,6,7,8,9]", &run_time);
+        let x = exec("[1, 6, 2, 3, 4, 7, 8, 5, 9] >> sort", &run_time);
+        let y = exec("[1, 2, 3, 4, 5, 6, 7, 8, 9]", &run_time);
         assert_eq!(x, y);
     }
 }
