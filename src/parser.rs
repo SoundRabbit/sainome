@@ -107,7 +107,8 @@ peg::parser! {
         }
 
         pub rule fnc_chain() -> FncChain = precedence! {
-            x:(@) d() ">>" d() y:@ { FncChain::FncChain(Box::new(x), Box::new(y)) }
+            x:(@) d() ">>" d() y:@ { FncChain::Concat(Box::new(x), Box::new(y)) }
+            x:(@) d() "|>" d() y:@ { FncChain::Pipeline(Box::new(x), Box::new(y)) }
             --
             x:fnc_def() { FncChain::FncDef(x) }
         }

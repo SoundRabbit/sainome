@@ -59,7 +59,23 @@ fn exec_branch<'a>(branch: &Branch, run_time: &mut RunTime<'a>) -> Option<Rc<Val
 
 fn exec_fnc_chain<'b>(fnc_chain: &FncChain, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>>> {
     match fnc_chain {
-        FncChain::FncChain(left, right) => {
+        FncChain::Concat(left, right) => {
+            let left = exec_fnc_chain(left, run_time);
+            let right = exec_fnc_chain(right, run_time);
+            let run_time = run_time.clone();
+            if let (Some(left), Some(right)) = (left, right) {
+                Some(Rc::new(Value::Fnc(Box::new(
+                    move |argv| -> Option<Rc<Value<'b>>> {
+                        let mut run_time = run_time.clone();
+                        call_like_fnc_with_value(&left, argv, &mut run_time)
+                            .and_then(|x| call_like_fnc_with_value(&right, x, &mut run_time))
+                    },
+                ))))
+            } else {
+                None
+            }
+        }
+        FncChain::Pipeline(left, right) => {
             let left = exec_fnc_chain(left, run_time);
             let right = exec_fnc_chain(right, run_time);
             if let (Some(left), Some(right)) = (left, right) {

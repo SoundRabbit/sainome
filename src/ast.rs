@@ -14,7 +14,8 @@ pub enum Branch {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FncChain {
-    FncChain(Box<FncChain>, Box<FncChain>),
+    Pipeline(Box<FncChain>, Box<FncChain>),
+    Concat(Box<FncChain>, Box<FncChain>),
     FncDef(FncDef),
 }
 
