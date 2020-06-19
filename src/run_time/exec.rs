@@ -62,11 +62,11 @@ fn exec_fnc_chain<'b>(fnc_chain: &FncChain, run_time: &mut RunTime<'b>) -> Optio
         FncChain::Concat(left, right) => {
             let left = exec_fnc_chain(left, run_time);
             let right = exec_fnc_chain(right, run_time);
-            let run_time = run_time.clone();
+            let run_time = run_time.capture();
             if let (Some(left), Some(right)) = (left, right) {
                 Some(Rc::new(Value::Fnc(Box::new(
                     move |argv| -> Option<Rc<Value<'b>>> {
-                        let mut run_time = run_time.clone();
+                        let mut run_time = run_time.capture();
                         call_like_fnc_with_value(&left, argv, &mut run_time)
                             .and_then(|x| call_like_fnc_with_value(&right, x, &mut run_time))
                     },
@@ -93,10 +93,10 @@ fn exec_fnc_def<'b>(fnc_def: &FncDef, run_time: &mut RunTime<'b>) -> Option<Rc<V
         FncDef::FncDef(arg, right) => {
             let arg = Rc::clone(arg);
             let right = Rc::clone(right);
-            let run_time = run_time.clone();
+            let run_time = run_time.capture();
             Some(Rc::new(Value::Fnc(Box::new(
                 move |argv| -> Option<Rc<Value<'b>>> {
-                    let mut run_time = run_time.clone();
+                    let mut run_time = run_time.capture();
                     run_time.env.insert(Rc::clone(&arg), argv);
                     exec_fnc_def(&Rc::clone(&right), &mut run_time)
                 },
@@ -353,7 +353,7 @@ fn exec_term<'b>(term: &Term, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>
         }
         Term::Expr(exprs) => {
             let mut res = None;
-            let mut run_time = run_time.clone();
+            let mut run_time = run_time.capture();
             for expr in exprs {
                 res = exec_expr(expr, &mut run_time);
             }

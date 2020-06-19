@@ -3,7 +3,8 @@ mod exec;
 use crate::Env;
 use crate::ExecResult;
 use crate::Value;
-use std::cell::{Ref, RefCell};
+use std::cell::{self, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub use exec::exec;
@@ -11,14 +12,22 @@ pub use exec::exec_mut;
 
 pub struct RunTime<'a> {
     env: Env<'a>,
+    reference: Rc<Ref<'a>>,
     log: Rc<RefCell<Vec<String>>>,
     rand: Rc<RefCell<dyn FnMut(u32) -> u32 + 'a>>,
+}
+
+#[derive(Clone)]
+pub struct Ref<'a> {
+    value: Option<Rc<Value<'a>>>,
+    children: HashMap<String, Ref<'a>>,
 }
 
 impl<'a> Clone for RunTime<'a> {
     fn clone(&self) -> Self {
         Self {
             env: self.env.clone(),
+            reference: Rc::new(Ref::clone(self.reference.as_ref())),
             rand: Rc::clone(&self.rand),
             log: Rc::new(RefCell::new(self.log.borrow().clone())),
         }
@@ -29,6 +38,7 @@ impl<'a> RunTime<'a> {
     pub fn new(rand: impl FnMut(u32) -> u32 + 'a) -> Self {
         let mut me = Self {
             env: Env::new(),
+            reference: Rc::new(Ref::new(None)),
             log: Rc::new(RefCell::new(vec![])),
             rand: Rc::new(RefCell::new(rand)),
         };
@@ -49,12 +59,27 @@ impl<'a> RunTime<'a> {
         self.env.insert(Rc::new(name.into()), fnc);
     }
 
-    pub fn log(&self) -> Ref<Vec<String>> {
+    pub fn set_code(&mut self, name: impl Into<String>, code: &str) {
+        let mut src = name.into() + ":=" + code;
+        src.retain(|c| c != '\n');
+        exec_mut(src.as_str(), self);
+    }
+
+    pub fn log(&self) -> cell::Ref<Vec<String>> {
         self.log.borrow()
     }
 
     pub fn clear_log(&self) {
         self.log.borrow_mut().clear();
+    }
+
+    fn capture(&self) -> Self {
+        Self {
+            env: self.env.clone(),
+            reference: Rc::clone(&self.reference),
+            rand: Rc::clone(&self.rand),
+            log: Rc::clone(&self.log),
+        }
     }
 
     fn set_defaults(&mut self) {
@@ -220,6 +245,28 @@ impl<'a> RunTime<'a> {
             }
             _ => None,
         });
+    }
+}
+
+impl<'a> Ref<'a> {
+    pub fn new(value: Option<Rc<Value<'a>>>) -> Self {
+        Self {
+            value,
+            children: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> std::ops::Deref for Ref<'a> {
+    type Target = HashMap<String, Ref<'a>>;
+    fn deref(&self) -> &Self::Target {
+        &self.children
+    }
+}
+
+impl<'a> std::ops::DerefMut for Ref<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.children
     }
 }
 
