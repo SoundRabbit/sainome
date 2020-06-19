@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 pub use run_time::exec;
 pub use run_time::exec_mut;
+pub use run_time::Ref;
 pub use run_time::RunTime;
 
 pub enum Value<'a> {
@@ -408,5 +409,18 @@ mod tests {
         let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
         let x = exec("[1, 2, 3, 4, 5, 6, 7, 8, 9] |> sum", &run_time);
         assert_eq!(x, Some(ExecResult::Num(45.0)));
+    }
+
+    #[test]
+    fn ref_to_expr() {
+        let mut rng = rand::thread_rng();
+        let mut run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let mut r = Ref::new(None);
+        let mut r2 = Ref::new(None);
+        r2.insert("def".into(), Ref::new(Some("1+2+3-6".into())));
+        r.insert("abc".into(), r2);
+        run_time.set_ref(r);
+        let x = exec("{abc.def}", &run_time);
+        assert_eq!(x, Some(ExecResult::Num(0.0)));
     }
 }

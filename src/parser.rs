@@ -21,8 +21,11 @@ peg::parser! {
         pub rule string() -> String
             = x:zero_len_str() / x:len_str() { x }
 
+        pub rule reference_item() -> String
+            = xs:$(([_]!['.' | '}'])*) x:$([_]) { xs.to_string() + x }
+
         pub rule reference() -> Vec<String>
-            = "{" x:$(!"."*) ** "." "}" { x.iter().map(|x| x.to_string()).collect() }
+            = "{" x:reference_item() ** "." "}" { x.iter().map(|x| x.to_string()).collect() }
 
         pub rule literal() -> Literal = precedence! {
             x:num() { Literal::Num(x) }

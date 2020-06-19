@@ -12,15 +12,15 @@ pub use exec::exec_mut;
 
 pub struct RunTime<'a> {
     env: Env<'a>,
-    reference: Rc<Ref<'a>>,
+    reference: Rc<Ref>,
     log: Rc<RefCell<Vec<String>>>,
     rand: Rc<RefCell<dyn FnMut(u32) -> u32 + 'a>>,
 }
 
 #[derive(Clone)]
-pub struct Ref<'a> {
-    value: Option<Rc<Value<'a>>>,
-    children: HashMap<String, Ref<'a>>,
+pub struct Ref {
+    value: Option<String>,
+    children: HashMap<String, Ref>,
 }
 
 impl<'a> Clone for RunTime<'a> {
@@ -63,6 +63,10 @@ impl<'a> RunTime<'a> {
         let mut src = name.into() + ":=" + code;
         src.retain(|c| c != '\n');
         exec_mut(src.as_str(), self);
+    }
+
+    pub fn set_ref(&mut self, r: Ref) {
+        self.reference = Rc::new(r);
     }
 
     pub fn log(&self) -> cell::Ref<Vec<String>> {
@@ -248,8 +252,8 @@ impl<'a> RunTime<'a> {
     }
 }
 
-impl<'a> Ref<'a> {
-    pub fn new(value: Option<Rc<Value<'a>>>) -> Self {
+impl Ref {
+    pub fn new(value: Option<String>) -> Self {
         Self {
             value,
             children: HashMap::new(),
@@ -257,14 +261,14 @@ impl<'a> Ref<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for Ref<'a> {
-    type Target = HashMap<String, Ref<'a>>;
+impl<'a> std::ops::Deref for Ref {
+    type Target = HashMap<String, Ref>;
     fn deref(&self) -> &Self::Target {
         &self.children
     }
 }
 
-impl<'a> std::ops::DerefMut for Ref<'a> {
+impl<'a> std::ops::DerefMut for Ref {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.children
     }

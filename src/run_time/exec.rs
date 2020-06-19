@@ -1,8 +1,10 @@
+use super::Ref;
 use super::RunTime;
 use crate::ast::*;
 use crate::parser;
 use crate::ExecResult;
 use crate::Value;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> Option<ExecResult> {
@@ -10,15 +12,17 @@ pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> Option<ExecResult> {
 }
 
 pub fn exec_mut<'a>(code: &str, run_time: &mut RunTime<'a>) -> Option<ExecResult> {
-    let ast = parser::parse::expr(code);
-    let value = match &ast {
-        Ok(expr) => {
-            let res = exec_expr(expr, run_time);
-            res.map(|x| ExecResult::from(x.as_ref()))
-        }
-        Err(x) => Some(ExecResult::Err(x.to_string())),
+    let value = match impl_exec(code, run_time) {
+        Ok(res) => res.map(|x| ExecResult::from(x.as_ref())),
+        Err(x) => Some(ExecResult::Err(x)),
     };
     value
+}
+
+fn impl_exec<'a>(code: &str, run_time: &mut RunTime<'a>) -> Result<Option<Rc<Value<'a>>>, String> {
+    parser::parse::expr(code)
+        .map(|ast| exec_expr(&ast, run_time))
+        .map_err(|x| x.to_string())
 }
 
 fn exec_expr<'a>(expr: &Expr, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
@@ -374,7 +378,26 @@ fn exec_literal<'b>(literal: &Literal, run_time: &mut RunTime<'b>) -> Option<Rc<
         }
         Literal::Num(num) => Some(Rc::new(Value::Num(*num))),
         Literal::Str(str) => Some(Rc::new(Value::Str(Rc::clone(str)))),
-        _ => None,
+        Literal::Ref(address) => {
+            let src = value_from_ref(&run_time.reference, address.iter().collect());
+            if let Some(src) = src {
+                impl_exec(src, &mut run_time.capture()).unwrap_or(None)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn value_from_ref<'a, 'b>(r: &'b Ref, mut a: VecDeque<&String>) -> Option<&'b String> {
+    if let Some(child) = a.pop_front() {
+        if let Some(child) = r.get(child) {
+            value_from_ref(child, a)
+        } else {
+            None
+        }
+    } else {
+        r.value.as_ref()
     }
 }
 
