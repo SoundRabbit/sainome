@@ -435,4 +435,19 @@ mod tests {
         let x = exec(code, &run_time).0;
         assert_eq!(x, Some(ExecResult::Num(9.0)));
     }
+
+    #[test]
+    fn multi_line_exprs_with_message() {
+        let mut rng = rand::thread_rng();
+        let run_time = RunTime::new(move |x| rng.gen::<u32>() % x);
+        let code = r#"x := \x. x + 1; 
+        x := x.2; 
+        x * x
+        あらゆる"#;
+        let x = exec(code, &run_time);
+        assert_eq!(
+            x,
+            (Some(ExecResult::Num(9.0)), Some("あらゆる".to_string()))
+        );
+    }
 }
