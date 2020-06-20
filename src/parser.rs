@@ -6,6 +6,8 @@ peg::parser! {
     pub grammar parse() for str {
         pub rule d() = [' ' | '\n' | '\t']*
 
+        pub rule dlm() = [' ' | '\n' | '\t']+
+
         pub rule num() -> f64
             = x:$(['0'..='9']+("."['0'..='9']+)?) { x.parse().unwrap() }
 
@@ -117,7 +119,7 @@ peg::parser! {
         }
 
         pub rule branch() -> Branch = precedence! {
-            "if" d() x: fnc_chain() d() "=>" d() y:branch() d() "else" d() z:branch() {Branch::Branch(x, Box::new(y), Box::new(z))}
+            "if" d() x: fnc_chain() d() "then" d() y:branch() d() "else" d() z:branch() {Branch::Branch(x, Box::new(y), Box::new(z))}
             --
             x:fnc_chain() { Branch::FncChain(x) }
         }
@@ -127,5 +129,14 @@ peg::parser! {
             --
             x:branch() { Expr::Branch(x) }
         }
+
+        pub rule impl_exprs() -> Vec<Expr>
+            = x:expr() ** (d() ";" d()) { x }
+
+        pub rule impl_exprs_message() -> String
+            = dlm() x:$([_]*) { x.to_string() }
+
+        pub rule exprs() -> (Option<Vec<Expr>>, Option<String>)
+            = x:impl_exprs()? y:impl_exprs_message()? { (x, y) }
     }
 }

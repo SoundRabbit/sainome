@@ -7,22 +7,33 @@ use crate::Value;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> Option<ExecResult> {
+pub fn exec<'a>(code: &str, run_time: &RunTime<'a>) -> (Option<ExecResult>, Option<String>) {
     exec_mut(code, &mut run_time.clone())
 }
 
-pub fn exec_mut<'a>(code: &str, run_time: &mut RunTime<'a>) -> Option<ExecResult> {
-    let value = match impl_exec(code, run_time) {
-        Ok(res) => res.map(|x| ExecResult::from(x.as_ref())),
-        Err(x) => Some(ExecResult::Err(x)),
-    };
+pub fn exec_mut<'a>(
+    code: &str,
+    run_time: &mut RunTime<'a>,
+) -> (Option<ExecResult>, Option<String>) {
+    let (ast, msg) = parser::parse::exprs(code).unwrap_or((None, None));
+    let value = ast
+        .and_then(|ast| exec_exprs(&ast, run_time))
+        .map(|x| ExecResult::from(x.as_ref()));
+    (value, msg)
+}
+
+fn exec_only_value<'a>(code: &str, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
+    let (ast, _) = parser::parse::exprs(code).unwrap_or((None, None));
+    let value = ast.and_then(|ast| exec_exprs(&ast, run_time));
     value
 }
 
-fn impl_exec<'a>(code: &str, run_time: &mut RunTime<'a>) -> Result<Option<Rc<Value<'a>>>, String> {
-    parser::parse::expr(code)
-        .map(|ast| exec_expr(&ast, run_time))
-        .map_err(|x| x.to_string())
+fn exec_exprs<'a>(exprs: &Vec<Expr>, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
+    let mut res = None;
+    for expr in exprs {
+        res = exec_expr(expr, run_time);
+    }
+    res
 }
 
 fn exec_expr<'a>(expr: &Expr, run_time: &mut RunTime<'a>) -> Option<Rc<Value<'a>>> {
@@ -356,12 +367,8 @@ fn exec_term<'b>(term: &Term, run_time: &mut RunTime<'b>) -> Option<Rc<Value<'b>
             Some(Rc::new(Value::List(Rc::new(values))))
         }
         Term::Expr(exprs) => {
-            let mut res = None;
             let mut run_time = run_time.capture();
-            for expr in exprs {
-                res = exec_expr(expr, &mut run_time);
-            }
-            res
+            exec_exprs(exprs, &mut run_time)
         }
     }
 }
@@ -381,7 +388,7 @@ fn exec_literal<'b>(literal: &Literal, run_time: &mut RunTime<'b>) -> Option<Rc<
         Literal::Ref(address) => {
             let src = value_from_ref(&run_time.reference, address.iter().collect());
             if let Some(src) = src {
-                impl_exec(src, &mut run_time.capture()).unwrap_or(None)
+                exec_only_value(src, &mut run_time.capture())
             } else {
                 None
             }
