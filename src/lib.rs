@@ -1,4 +1,5 @@
 extern crate peg;
+extern crate wasm_bindgen;
 
 mod ast;
 mod parser;
