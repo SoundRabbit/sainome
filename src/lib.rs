@@ -2,16 +2,16 @@ extern crate peg;
 extern crate wasm_bindgen;
 
 mod preprocess;
-mod run_time;
+mod runtime;
 
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::rc::Rc;
 
-pub use run_time::exec;
-pub use run_time::exec_mut;
-pub use run_time::Ref;
-pub use run_time::RunTime;
+pub use runtime::exec;
+pub use runtime::exec_mut;
+pub use runtime::Ref;
+pub use runtime::RunTime;
 
 pub enum Value<'a> {
     Bool(bool),
