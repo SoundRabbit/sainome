@@ -1,4 +1,6 @@
+mod ast;
 mod exec;
+mod parser;
 
 use crate::Env;
 use crate::ExecResult;
