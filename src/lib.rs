@@ -1,6 +1,7 @@
 extern crate peg;
 extern crate wasm_bindgen;
 
+mod preprocess;
 mod run_time;
 
 use std::collections::HashMap;
